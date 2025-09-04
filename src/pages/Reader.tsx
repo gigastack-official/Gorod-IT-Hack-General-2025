@@ -14,7 +14,14 @@ export type KeyDto = {
   qrPayload?: string; // строка для QR, если бэкенд вернёт
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "";
+type CreateCardResponse = {
+  status: "OK" | "FAIL";
+  cardId: string;
+  owner: string;
+  expiresAt: string; // ISO date-time
+};
+
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.56:8080";
 
 const KeyPage = () => {
   const [currentKey, setCurrentKey] = useState<KeyDto | null>(null);
@@ -23,10 +30,10 @@ const KeyPage = () => {
   const { toast } = useToast();
 
   const requestNewKey = async (): Promise<KeyDto> => {
-    const res = await fetch(`${API_BASE}/api/keys`, {
+    const res = await fetch(`${API_BASE}/api/cards`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
+      body: JSON.stringify({ owner: "Web", ttlSeconds: 86400 }),
     });
 
     if (!res.ok) {
@@ -34,7 +41,23 @@ const KeyPage = () => {
       throw new Error(`Ошибка ${res.status}: ${text || res.statusText}`);
     }
 
-    return (await res.json()) as KeyDto;
+    const data = (await res.json()) as CreateCardResponse;
+    if (data.status !== "OK") {
+      throw new Error("Бэкенд вернул статус FAIL");
+    }
+
+    const expiresAtMs = new Date(data.expiresAt).getTime();
+    const now = Date.now();
+    const ttlMs = Math.max(0, expiresAtMs - now);
+
+    const mapped: KeyDto = {
+      id: data.cardId,
+      value: "",
+      createdAt: now,
+      ttl: ttlMs,
+      qrPayload: JSON.stringify(data),
+    };
+    return mapped;
   };
 
   const generateKey = async () => {

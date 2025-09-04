@@ -1,17 +1,16 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Shield, Smartphone, Monitor, Settings, Activity } from "lucide-react";
+import { Shield, Smartphone, Monitor, Settings } from "lucide-react";
 
 const Navigation = () => {
   const location = useLocation();
 
   const navItems = [
     { path: "/", label: "Главная", icon: Shield, variant: "default" as const },
-    { path: "/card", label: "Карта", icon: Smartphone, variant: "secondary" as const },
-    { path: "/reader", label: "Считыватель", icon: Monitor, variant: "secondary" as const },
+    { path: "/card", label: "Считыватель", icon: Smartphone, variant: "secondary" as const },
+    { path: "/reader", label: "Ключ", icon: Monitor, variant: "secondary" as const },
     { path: "/admin", label: "Админ", icon: Settings, variant: "secondary" as const },
-    { path: "/events", label: "События", icon: Activity, variant: "outline" as const },
   ];
 
   return (
