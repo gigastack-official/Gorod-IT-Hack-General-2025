@@ -5,6 +5,7 @@ import { Smartphone, Send } from "lucide-react";
 import Navigation from "@/components/layout/Navigation";
 import QRScanner from "@/components/QRScanner";
 import { useToast } from "@/hooks/use-toast";
+import { successTone, failTone, infoTone } from "@/lib/audio";
 
 type SimResponse = {
   status: "OK" | "FAIL";
@@ -27,6 +28,7 @@ const CardPage = () => {
     if (isProcessing) return;
     
     setIsProcessing(true);
+    infoTone().catch(() => {});
     setIsScanning(false);
     
     try {
@@ -55,6 +57,11 @@ const CardPage = () => {
         description: success ? "Аутентификация успешна" : "Ошибка верификации",
         variant: success ? "default" : "destructive",
       });
+      if (success) {
+        successTone().catch(() => {});
+      } else {
+        failTone().catch(() => {});
+      }
       
     } catch (error) {
       console.error('Challenge processing error:', error);
@@ -63,6 +70,7 @@ const CardPage = () => {
         description: error instanceof Error ? error.message : "Не удалось обработать QR-код",
         variant: "destructive",
       });
+      failTone().catch(() => {});
     } finally {
       setIsProcessing(false);
     }

@@ -10,12 +10,15 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 @Service
 public class CardService {
     private final SecureRandom secureRandom = new SecureRandom();
     private final CardRepository cardRepository;
+    private final ConcurrentHashMap<String, Rate> rateMap = new ConcurrentHashMap<>();
 
     public CardService(CardRepository cardRepository) {
         this.cardRepository = cardRepository;
@@ -47,6 +50,7 @@ public class CardService {
     }
 
     public boolean verifyTruncTag(String cardIdB64, byte[] ctrLE, byte[] tag16) {
+        if (!allow(cardIdB64)) return false;
         Optional<CardRecord> existing = cardRepository.findById(cardIdB64);
         CardRecord cardRecord = existing.orElse(null);
         if (cardRecord == null) return false;
@@ -111,6 +115,32 @@ public class CardService {
             v = (v << 8) | (le8[i] & 0xFFL);
         }
         return v;
+    }
+
+    private static class Rate {
+        long windowStartMs;
+        int count;
+    }
+
+    private boolean allow(String cardId) {
+        final long windowMs = TimeUnit.SECONDS.toMillis(1);
+        final int maxPerWindow = 5;
+        long now = System.currentTimeMillis();
+        Rate r = rateMap.computeIfAbsent(cardId, k -> {
+            Rate nr = new Rate();
+            nr.windowStartMs = now;
+            nr.count = 0;
+            return nr;
+        });
+        synchronized (r) {
+            if (now - r.windowStartMs >= windowMs) {
+                r.windowStartMs = now;
+                r.count = 0;
+            }
+            if (r.count >= maxPerWindow) return false;
+            r.count++;
+            return true;
+        }
     }
 }
 

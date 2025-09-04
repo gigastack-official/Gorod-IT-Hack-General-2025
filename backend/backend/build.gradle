@@ -8,7 +8,9 @@ group = 'ru.gigastack'
 version = '1.0.0'
 
 java {
-    toolchain { languageVersion = JavaLanguageVersion.of(17) }
+    // Compile targeting Java 17 while allowing newer JDKs to be used locally
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 repositories {

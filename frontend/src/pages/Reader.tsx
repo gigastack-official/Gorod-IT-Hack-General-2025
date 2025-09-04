@@ -5,6 +5,7 @@ import { QrCode, RefreshCw } from "lucide-react";
 import Navigation from "@/components/layout/Navigation";
 import QRGenerator from "@/components/QRGenerator";
 import { useToast } from "@/hooks/use-toast";
+import { successTone, failTone, infoTone } from "@/lib/audio";
 
 export type KeyDto = {
   id: string;
@@ -60,6 +61,7 @@ const KeyPage = () => {
     setIsGenerating(true);
 
     try {
+      infoTone().catch(() => {});
       const key = await requestNewKey();
 
       setCurrentKey(key);
@@ -69,6 +71,7 @@ const KeyPage = () => {
         title: "QR сгенерирован",
         description: "Данные получены от эмулятора",
       });
+      successTone().catch(() => {});
     } catch (err: any) {
       console.error("Ошибка генерации ключа:", err);
       toast({
@@ -76,6 +79,7 @@ const KeyPage = () => {
         description: err?.message ?? "Не удалось создать ключ",
         variant: "destructive",
       });
+      failTone().catch(() => {});
     } finally {
       setIsGenerating(false);
     }
