@@ -1,5 +1,6 @@
 package backend.api;
 
+import backend.dto.CreateCardRequest;
 import backend.dto.CreateCardResponse;
 import backend.dto.VerifyRequest;
 import backend.model.CardRecord;
@@ -20,9 +21,9 @@ public class CardController {
     }
 
     @PostMapping
-    public ResponseEntity<CreateCardResponse> createCard() {
-        CardRecord rec = cardService.createCard();
-        return ResponseEntity.ok(new CreateCardResponse("OK", rec.getCardId(), rec.getkMaster()));
+    public ResponseEntity<CreateCardResponse> createCard(@Valid @RequestBody CreateCardRequest req) {
+        CardRecord rec = cardService.personalize(req.getOwner(), req.getTtlSeconds());
+        return ResponseEntity.ok(new CreateCardResponse("OK", rec.getCardId(), rec.getOwner(), rec.getExpiresAt().toString()));
     }
 
     @PostMapping("/verify")

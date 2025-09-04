@@ -7,10 +7,10 @@ public class VerifyRequest {
     private String cardId;
 
     @NotBlank
-    private String ctr; // base64url(8)
+    private String ctr;
 
     @NotBlank
-    private String tag; // base64url(16) trunc HMAC
+    private String tag;
 
     public String getCardId() { return cardId; }
     public void setCardId(String cardId) { this.cardId = cardId; }

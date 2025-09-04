@@ -1,0 +1,225 @@
+openapi: 3.0.3
+info:
+  title: CityItHack Access Control API
+  version: 1.0.0
+  description: |
+    Система контроля доступа: создание карт, генерация ответа карты (эмулятор),
+    верификация на контроллере, администрирование карт.
+servers:
+  - url: http://localhost:8080
+    description: Local server
+paths:
+  /api/cards:
+    post:
+      summary: Создать карту (персонализация)
+      operationId: createCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCardRequest'
+      responses:
+        '200':
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCardResponse'
+  /api/sim/response/{cardId}:
+    post:
+      summary: Получить ctr/tag от эмулятора карты
+      operationId: simulateCardResponse
+      parameters:
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+          description: base64url(16) идентификатор карты
+      responses:
+        '200':
+          description: Успех/неуспех
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimResponse'
+  /api/cards/verify:
+    post:
+      summary: Верификация контроллером (HMAC-SHA256 trunc16)
+      operationId: verifyCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyRequest'
+      responses:
+        '200':
+          description: Результат проверки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+  /api/admin/revoke/{cardId}:
+    post:
+      summary: Деактивировать карту
+      operationId: revokeCard
+      parameters:
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+          description: base64url(16)
+      responses:
+        '200':
+          description: Результат операции
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+  /api/admin/extend/{cardId}:
+    post:
+      summary: Продлить срок действия карты
+      operationId: extendCard
+      parameters:
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: extraSeconds
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 60
+          description: На сколько секунд продлить
+      responses:
+        '200':
+          description: Результат операции
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+  /api/admin/status/{cardId}:
+    get:
+      summary: Получить карту
+      operationId: getCard
+      parameters:
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Карта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardRecord'
+        '404':
+          description: Не найдено
+  /api/admin/list:
+    get:
+      summary: Список карт
+      operationId: listCards
+      responses:
+        '200':
+          description: Список карт
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CardRecord'
+components:
+  schemas:
+    CreateCardRequest:
+      type: object
+      required: [owner, ttlSeconds]
+      properties:
+        owner:
+            type: string
+            example: Иван
+        ttlSeconds:
+            type: integer
+            format: int64
+            minimum: 60
+            example: 86400
+    CreateCardResponse:
+      type: object
+      required: [status, cardId, owner, expiresAt]
+      properties:
+        status:
+          type: string
+          enum: [OK, FAIL]
+          example: OK
+        cardId:
+          type: string
+          description: base64url(16)
+        owner:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    VerifyRequest:
+      type: object
+      required: [cardId, ctr, tag]
+      properties:
+        cardId:
+          type: string
+          description: base64url(16)
+        ctr:
+          type: string
+          description: base64url(8)
+        tag:
+          type: string
+          description: base64url(16)
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [OK, FAIL]
+          example: OK
+    SimResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [OK, FAIL]
+        ctr:
+          type: string
+          nullable: true
+        tag:
+          type: string
+          nullable: true
+    CardRecord:
+      type: object
+      properties:
+        cardId:
+          type: string
+          description: base64url(16)
+        kMaster:
+          type: string
+          description: base64url(32)
+        owner:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        active:
+          type: boolean
+
+
