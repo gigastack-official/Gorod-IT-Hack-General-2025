@@ -40,7 +40,7 @@ const CardPage = () => {
       }
 
       // Verify on backend using values from QR
-      const verifyRes = await fetch(`${API_BASE}/api/cards/verify`, {
+      const verifyRes = await fetch(`${API_BASE}/cards/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cardId, ctr, tag }),

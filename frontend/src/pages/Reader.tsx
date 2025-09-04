@@ -31,7 +31,7 @@ const KeyPage = () => {
   const { toast } = useToast();
 
   const requestNewKey = async (): Promise<KeyDto> => {
-    const res = await fetch(`${API_BASE}/api/sim/response/${encodeURIComponent(FIXED_CARD_ID)}`, {
+    const res = await fetch(`${API_BASE}/sim/response/${encodeURIComponent(FIXED_CARD_ID)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
