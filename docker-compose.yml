@@ -1,5 +1,21 @@
 version: "3.9"
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: access-postgres
+    environment:
+      - POSTGRES_DB=cityithack
+      - POSTGRES_USER=city
+      - POSTGRES_PASSWORD=city
+    ports:
+      - "5433:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U city -d cityithack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   backend:
     build:
       context: ./backend
@@ -9,6 +25,9 @@ services:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -26,5 +45,8 @@ services:
       - backend
     ports:
       - "5173:80"
+
+volumes:
+  dbdata:
 
 
