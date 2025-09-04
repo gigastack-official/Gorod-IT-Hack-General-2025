@@ -1,4 +1,4 @@
-package ru.gigastack.backend;
+package backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -9,3 +9,5 @@ public class AccessBackendApplication {
         SpringApplication.run(AccessBackendApplication.class, args);
     }
 }
+
+

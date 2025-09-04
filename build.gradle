@@ -1,8 +1,5 @@
 plugins {
     id 'java'
-    id 'application'
-    id 'org.springframework.boot' version '3.3.2'
-    id 'io.spring.dependency-management' version '1.1.5'
 }
 
 group = 'ru.gigastack'
@@ -12,9 +9,6 @@ repositories { mavenCentral() }
 
 dependencies {
     implementation("com.klinec:jcardsim:3.0.6.0")
-
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -23,6 +17,3 @@ tasks.withType(JavaCompile).configureEach {
     targetCompatibility = '17'
 }
 
-application {
-    mainClass = 'ru.gigastack.access.reader.ReaderSim'
-}
