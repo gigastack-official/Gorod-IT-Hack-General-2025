@@ -22,7 +22,12 @@ type SimResponse = {
 };
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
-const FIXED_CARD_ID = "Vzb3KEtkgIngNybRe6FKVg";
+type CreateCardResponse = {
+  status: "OK" | "FAIL";
+  cardId: string;
+  owner: string;
+  expiresAt: string;
+};
 
 const KeyPage = () => {
   const [currentKey, setCurrentKey] = useState<KeyDto | null>(null);
@@ -30,8 +35,26 @@ const KeyPage = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
+  const createCard = async (): Promise<CreateCardResponse> => {
+    const res = await fetch(`${API_BASE}/cards`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ owner: "Demo", ttlSeconds: 86400 }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Ошибка ${res.status}: ${text || res.statusText}`);
+    }
+    return (await res.json()) as CreateCardResponse;
+  };
+
   const requestNewKey = async (): Promise<KeyDto> => {
-    const res = await fetch(`${API_BASE}/sim/response/${encodeURIComponent(FIXED_CARD_ID)}`, {
+    // 1) Создаём карту (персонализация)
+    const created = await createCard();
+    const cardId = created.cardId;
+
+    // 2) Запрашиваем ctr/tag от эмулятора для этой карты
+    const res = await fetch(`${API_BASE}/sim/response/${encodeURIComponent(cardId)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
@@ -48,11 +71,11 @@ const KeyPage = () => {
 
     const now = Date.now();
     const mapped: KeyDto = {
-      id: FIXED_CARD_ID,
+      id: cardId,
       value: "",
       createdAt: now,
       ttl: 0,
-      qrPayload: JSON.stringify({ cardId: FIXED_CARD_ID, ctr: data.ctr, tag: data.tag }),
+      qrPayload: JSON.stringify({ cardId, ctr: data.ctr, tag: data.tag }),
     };
     return mapped;
   };
