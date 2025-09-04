@@ -17,7 +17,7 @@ type StatusResponse = {
   status: "OK" | "FAIL";
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.56:8080";
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
 
 const CardPage = () => {
   const [isScanning, setIsScanning] = useState(false);

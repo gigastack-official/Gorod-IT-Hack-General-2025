@@ -21,7 +21,7 @@ type SimResponse = {
   tag?: string | null;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.56:8080";
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
 const FIXED_CARD_ID = "Vzb3KEtkgIngNybRe6FKVg";
 
 const KeyPage = () => {
