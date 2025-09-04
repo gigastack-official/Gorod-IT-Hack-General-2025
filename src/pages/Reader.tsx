@@ -14,7 +14,14 @@ export type KeyDto = {
   qrPayload?: string; // строка для QR, если бэкенд вернёт
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "";
+type SimResponse = {
+  status: "OK" | "FAIL";
+  ctr?: string | null;
+  tag?: string | null;
+};
+
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.56:8080";
+const FIXED_CARD_ID = "Vzb3KEtkgIngNybRe6FKVg";
 
 const KeyPage = () => {
   const [currentKey, setCurrentKey] = useState<KeyDto | null>(null);
@@ -23,10 +30,9 @@ const KeyPage = () => {
   const { toast } = useToast();
 
   const requestNewKey = async (): Promise<KeyDto> => {
-    const res = await fetch(`${API_BASE}/api/keys`, {
+    const res = await fetch(`${API_BASE}/api/sim/response/${encodeURIComponent(FIXED_CARD_ID)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
     });
 
     if (!res.ok) {
@@ -34,7 +40,20 @@ const KeyPage = () => {
       throw new Error(`Ошибка ${res.status}: ${text || res.statusText}`);
     }
 
-    return (await res.json()) as KeyDto;
+    const data = (await res.json()) as SimResponse;
+    if (data.status !== "OK" || !data.ctr || !data.tag) {
+      throw new Error("Не удалось получить ctr/tag от эмулятора");
+    }
+
+    const now = Date.now();
+    const mapped: KeyDto = {
+      id: FIXED_CARD_ID,
+      value: "",
+      createdAt: now,
+      ttl: 0,
+      qrPayload: JSON.stringify({ cardId: FIXED_CARD_ID, ctr: data.ctr, tag: data.tag }),
+    };
+    return mapped;
   };
 
   const generateKey = async () => {
@@ -47,8 +66,8 @@ const KeyPage = () => {
       setQrData(key.qrPayload ?? JSON.stringify(key));
 
       toast({
-        title: "Ключ создан",
-        description: "QR-код готов к использованию",
+        title: "QR сгенерирован",
+        description: "Данные получены от эмулятора",
       });
     } catch (err: any) {
       console.error("Ошибка генерации ключа:", err);
