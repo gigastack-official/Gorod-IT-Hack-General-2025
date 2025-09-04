@@ -4,37 +4,37 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Monitor, QrCode, Shield, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import Navigation from "@/components/layout/Navigation";
+import QRGenerator from "@/components/QRGenerator";
 import { useToast } from "@/hooks/use-toast";
-
-interface Challenge {
-  id: string;
-  nonce: string;
-  timestamp: number;
-  readerId: string;
-  qrData: string;
-}
+import { createChallenge, type Challenge } from "@/lib/crypto";
 
 const ReaderPage = () => {
   const [currentChallenge, setCurrentChallenge] = useState<Challenge | null>(null);
+  const [qrData, setQrData] = useState<string>("");
   const [accessStatus, setAccessStatus] = useState<'idle' | 'granted' | 'denied'>('idle');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [readerId] = useState("reader_001");
+  const [challengeTimeout, setChallengeTimeout] = useState<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const generateChallenge = async () => {
     setIsGenerating(true);
     setAccessStatus('idle');
     
-    // Simulate challenge generation
-    setTimeout(() => {
-      const challenge: Challenge = {
-        id: `ch_${Date.now()}`,
-        nonce: Math.random().toString(36).substring(2, 15),
-        timestamp: Date.now(),
-        readerId: "reader_001",
-        qrData: `{"challengeId":"ch_${Date.now()}","nonce":"${Math.random().toString(36).substring(2, 15)}","timestamp":${Date.now()},"readerId":"reader_001"}`
-      };
+    // Clear existing timeout
+    if (challengeTimeout) {
+      clearTimeout(challengeTimeout);
+    }
+    
+    try {
+      // Create new challenge
+      const challenge = createChallenge(readerId, 300000); // 5 minutes TTL
+      
+      // Generate QR data
+      const qrPayload = JSON.stringify(challenge);
       
       setCurrentChallenge(challenge);
+      setQrData(qrPayload);
       setIsGenerating(false);
       
       toast({
@@ -42,19 +42,54 @@ const ReaderPage = () => {
         description: "QR-код готов к сканированию",
       });
 
-      // Simulate response after 5 seconds
+      // Auto-expire challenge after TTL
+      const timeout = setTimeout(() => {
+        if (accessStatus === 'idle') {
+          setAccessStatus('denied');
+          toast({
+            title: "Челлендж истек",
+            description: "Время ожидания ответа истекло",
+            variant: "destructive",
+          });
+        }
+      }, challenge.ttl);
+      
+      setChallengeTimeout(timeout);
+      
+      // Simulate successful response after random delay (for demo)
+      const demoResponseDelay = 8000 + Math.random() * 10000; // 8-18 seconds
       setTimeout(() => {
-        const granted = Math.random() > 0.3; // 70% success rate
-        setAccessStatus(granted ? 'granted' : 'denied');
-        
-        toast({
-          title: granted ? "Доступ разрешен" : "Доступ запрещен",
-          description: granted ? "Аутентификация успешна" : "Неверная подпись",
-          variant: granted ? "default" : "destructive",
-        });
-      }, 5000);
-    }, 1500);
+        if (accessStatus === 'idle') {
+          const granted = Math.random() > 0.2; // 80% success rate for demo
+          setAccessStatus(granted ? 'granted' : 'denied');
+          
+          toast({
+            title: granted ? "Доступ разрешен" : "Доступ запрещен", 
+            description: granted ? "Аутентификация успешна" : "Неверная подпись",
+            variant: granted ? "default" : "destructive",
+          });
+        }
+      }, demoResponseDelay);
+      
+    } catch (error) {
+      console.error('Challenge generation error:', error);
+      setIsGenerating(false);
+      toast({
+        title: "Ошибка создания челленджа",
+        description: "Не удалось создать новый челлендж",
+        variant: "destructive",
+      });
+    }
   };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (challengeTimeout) {
+        clearTimeout(challengeTimeout);
+      }
+    };
+  }, [challengeTimeout]);
 
   useEffect(() => {
     // Auto-generate initial challenge
@@ -131,32 +166,27 @@ const ReaderPage = () => {
         </Card>
 
         {currentChallenge && (
-          <Card className="p-6 bg-gradient-card shadow-card">
-            <div className="space-y-4">
-              <div className="text-center">
-                <QrCode className="w-16 h-16 mx-auto text-primary mb-4" />
-                <h3 className="font-semibold mb-2">QR-код челленджа</h3>
-                <div className="p-4 bg-muted rounded-lg">
-                  <div className="grid grid-cols-8 gap-1">
-                    {Array.from({ length: 64 }, (_, i) => (
-                      <div
-                        key={i}
-                        className={`w-3 h-3 ${
-                          Math.random() > 0.5 ? 'bg-foreground' : 'bg-background'
-                        }`}
-                      />
-                    ))}
-                  </div>
+          <>
+            <QRGenerator
+              data={qrData}
+              title="QR-код челленджа"
+              onRefresh={generateChallenge}
+              refreshDisabled={isGenerating}
+            />
+            
+            <Card className="p-4 bg-gradient-card shadow-card">
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm">Детали челленджа</h3>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <div><strong>ID:</strong> {currentChallenge.id}</div>
+                  <div><strong>Nonce:</strong> {currentChallenge.nonce}</div>
+                  <div><strong>Считыватель:</strong> {currentChallenge.readerId}</div>
+                  <div><strong>Создан:</strong> {new Date(currentChallenge.timestamp).toLocaleString()}</div>
+                  <div><strong>TTL:</strong> {Math.round(currentChallenge.ttl / 1000)} сек</div>
                 </div>
               </div>
-              
-              <div className="text-xs text-muted-foreground space-y-1">
-                <div><strong>ID:</strong> {currentChallenge.id}</div>
-                <div><strong>Nonce:</strong> {currentChallenge.nonce}</div>
-                <div><strong>Время:</strong> {new Date(currentChallenge.timestamp).toLocaleTimeString()}</div>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </>
         )}
       </div>
     </div>

@@ -1,43 +1,152 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Smartphone, Camera, Key, CheckCircle2, AlertCircle } from "lucide-react";
+import { Smartphone, Key, CheckCircle2, AlertCircle, Send } from "lucide-react";
 import Navigation from "@/components/layout/Navigation";
+import QRScanner from "@/components/QRScanner";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  generateKeyPair, 
+  signChallenge, 
+  exportKeyToJWK, 
+  importKeyFromJWK,
+  type Challenge,
+  type KeyPair,
+  type StoredCredential 
+} from "@/lib/crypto";
 
 const CardPage = () => {
   const [isScanning, setIsScanning] = useState(false);
-  const [hasPrivateKey, setHasPrivateKey] = useState(true);
-  const [lastChallenge, setLastChallenge] = useState<string | null>(null);
+  const [hasPrivateKey, setHasPrivateKey] = useState(false);
+  const [credential, setCredential] = useState<StoredCredential | null>(null);
+  const [keyPair, setKeyPair] = useState<KeyPair | null>(null);
+  const [lastChallenge, setLastChallenge] = useState<Challenge | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
-  const handleScanChallenge = async () => {
-    setIsScanning(true);
-    
-    // Simulate QR scanning
-    setTimeout(() => {
-      const challengeId = `ch_${Date.now()}`;
-      setLastChallenge(challengeId);
-      setIsScanning(false);
-      
-      // Simulate signing challenge
-      setTimeout(() => {
-        toast({
-          title: "Челлендж подписан",
-          description: "Подпись отправлена на сервер",
-        });
-      }, 1000);
-    }, 2000);
+  // Load stored credential on mount
+  useEffect(() => {
+    loadStoredCredential();
+  }, []);
+
+  const loadStoredCredential = async () => {
+    try {
+      const stored = localStorage.getItem('accessCard.credential');
+      if (stored) {
+        const cred: StoredCredential = JSON.parse(stored);
+        setCredential(cred);
+        setHasPrivateKey(true);
+        
+        // Import private key
+        if (cred.privateKeyJWK) {
+          const privateKey = await importKeyFromJWK(cred.privateKeyJWK, ['sign']);
+          const publicKey = await importKeyFromJWK(cred.publicKeyJWK, ['verify']);
+          setKeyPair({ privateKey, publicKey });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load credential:', error);
+    }
   };
 
-  const generateKeyPair = async () => {
-    // Mock key generation
-    setHasPrivateKey(true);
+  const handleQRResult = async (qrData: string) => {
+    if (!keyPair || isProcessing) return;
+    
+    setIsProcessing(true);
+    setIsScanning(false);
+    
+    try {
+      // Parse challenge from QR code
+      const challenge: Challenge = JSON.parse(qrData);
+      setLastChallenge(challenge);
+      
+      // Sign the challenge
+      const signature = await signChallenge(keyPair.privateKey, challenge);
+      
+      // Prepare response
+      const response = {
+        challengeId: challenge.id,
+        credentialId: credential!.id,
+        signatureB64: signature,
+        publicKeyJWK: credential!.publicKeyJWK
+      };
+      
+      toast({
+        title: "Челлендж подписан",
+        description: `Подпись создана для челленджа ${challenge.id}`,
+      });
+      
+      // Here you would normally send to server
+      console.log('Challenge response:', response);
+      
+      // Simulate server response
+      setTimeout(() => {
+        const success = Math.random() > 0.2; // 80% success rate
+        toast({
+          title: success ? "Доступ разрешен" : "Доступ запрещен",
+          description: success ? "Аутентификация успешна" : "Ошибка верификации",
+          variant: success ? "default" : "destructive",
+        });
+      }, 1500);
+      
+    } catch (error) {
+      console.error('Challenge processing error:', error);
+      toast({
+        title: "Ошибка обработки",
+        description: "Не удалось обработать QR-код",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleScanError = (error: string) => {
     toast({
-      title: "Ключи сгенерированы",
-      description: "Приватный ключ сохранен локально",
+      title: "Ошибка сканирования",
+      description: error,
+      variant: "destructive",
     });
+  };
+
+  const generateNewKeyPair = async () => {
+    try {
+      // Generate new key pair
+      const newKeyPair = await generateKeyPair();
+      
+      // Export keys
+      const privateKeyJWK = await exportKeyToJWK(newKeyPair.privateKey);
+      const publicKeyJWK = await exportKeyToJWK(newKeyPair.publicKey);
+      
+      // Create credential
+      const newCredential: StoredCredential = {
+        id: `cred_${Date.now()}`,
+        publicKeyJWK,
+        privateKeyJWK,
+        userId: `user_${Date.now()}`,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year
+      };
+      
+      // Store locally
+      localStorage.setItem('accessCard.credential', JSON.stringify(newCredential));
+      
+      setCredential(newCredential);
+      setKeyPair(newKeyPair);
+      setHasPrivateKey(true);
+      
+      toast({
+        title: "Ключи сгенерированы",
+        description: "Новые ключи созданы и сохранены",
+      });
+    } catch (error) {
+      toast({
+        title: "Ошибка генерации",
+        description: "Не удалось создать ключи",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -76,46 +185,69 @@ const CardPage = () => {
 
             {!hasPrivateKey && (
               <Button 
-                onClick={generateKeyPair}
+                onClick={generateNewKeyPair}
                 className="w-full bg-gradient-primary hover:opacity-90 shadow-primary"
               >
                 Генерировать ключи
               </Button>
             )}
+            
+            {hasPrivateKey && credential && (
+              <div className="text-xs space-y-1 text-muted-foreground">
+                <div><strong>ID:</strong> {credential.id}</div>
+                <div><strong>Создан:</strong> {new Date(credential.createdAt).toLocaleDateString()}</div>
+                <div><strong>Истекает:</strong> {new Date(credential.expiresAt).toLocaleDateString()}</div>
+              </div>
+            )}
           </div>
         </Card>
 
         {hasPrivateKey && (
-          <Card className="p-6 bg-gradient-card shadow-card">
+          <>
             <div className="space-y-4">
-              <div className="text-center">
-                <Camera className="w-12 h-12 mx-auto text-primary mb-2" />
-                <h3 className="font-semibold">Сканирование QR</h3>
-                <p className="text-sm text-muted-foreground">
-                  Отсканируйте QR-код считывателя
-                </p>
-              </div>
-
               <Button
-                onClick={handleScanChallenge}
-                disabled={isScanning}
+                onClick={() => setIsScanning(!isScanning)}
+                disabled={isProcessing}
                 className="w-full bg-gradient-primary hover:opacity-90 shadow-primary"
               >
-                {isScanning ? "Сканирование..." : "Сканировать челлендж"}
+                {isScanning ? "Остановить сканирование" : "Начать сканирование"}
               </Button>
-
-              {lastChallenge && (
-                <div className="p-3 bg-success/10 border border-success/20 rounded-lg">
-                  <div className="flex items-center gap-2 text-success">
-                    <CheckCircle2 className="w-4 h-4" />
+              
+              {isProcessing && (
+                <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Send className="w-4 h-4 animate-pulse" />
                     <span className="text-sm font-medium">
-                      Последний челлендж: {lastChallenge}
+                      Обработка челленджа...
                     </span>
                   </div>
                 </div>
               )}
             </div>
-          </Card>
+
+            <QRScanner
+              isActive={isScanning}
+              onResult={handleQRResult}
+              onError={handleScanError}
+            />
+
+            {lastChallenge && (
+              <Card className="p-4 bg-gradient-card shadow-card">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-success">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span className="text-sm font-medium">Последний челлендж</span>
+                  </div>
+                  <div className="text-xs space-y-1 text-muted-foreground">
+                    <div><strong>ID:</strong> {lastChallenge.id}</div>
+                    <div><strong>Считыватель:</strong> {lastChallenge.readerId}</div>
+                    <div><strong>Время:</strong> {new Date(lastChallenge.timestamp).toLocaleString()}</div>
+                    <div><strong>Nonce:</strong> {lastChallenge.nonce}</div>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </>
         )}
       </div>
     </div>
