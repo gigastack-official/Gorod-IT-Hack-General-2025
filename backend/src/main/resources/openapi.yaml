@@ -206,9 +206,6 @@ components:
         cardId:
           type: string
           description: base64url(16)
-        kMaster:
-          type: string
-          description: base64url(32)
         owner:
           type: string
         createdAt:
