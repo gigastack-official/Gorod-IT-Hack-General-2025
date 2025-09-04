@@ -14,14 +14,14 @@ export type KeyDto = {
   qrPayload?: string; // строка для QR, если бэкенд вернёт
 };
 
-type CreateCardResponse = {
+type SimResponse = {
   status: "OK" | "FAIL";
-  cardId: string;
-  owner: string;
-  expiresAt: string; // ISO date-time
+  ctr?: string | null;
+  tag?: string | null;
 };
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.56:8080";
+const FIXED_CARD_ID = "Vzb3KEtkgIngNybRe6FKVg";
 
 const KeyPage = () => {
   const [currentKey, setCurrentKey] = useState<KeyDto | null>(null);
@@ -30,10 +30,9 @@ const KeyPage = () => {
   const { toast } = useToast();
 
   const requestNewKey = async (): Promise<KeyDto> => {
-    const res = await fetch(`${API_BASE}/api/cards`, {
+    const res = await fetch(`${API_BASE}/api/sim/response/${encodeURIComponent(FIXED_CARD_ID)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ owner: "Web", ttlSeconds: 86400 }),
     });
 
     if (!res.ok) {
@@ -41,21 +40,18 @@ const KeyPage = () => {
       throw new Error(`Ошибка ${res.status}: ${text || res.statusText}`);
     }
 
-    const data = (await res.json()) as CreateCardResponse;
-    if (data.status !== "OK") {
-      throw new Error("Бэкенд вернул статус FAIL");
+    const data = (await res.json()) as SimResponse;
+    if (data.status !== "OK" || !data.ctr || !data.tag) {
+      throw new Error("Не удалось получить ctr/tag от эмулятора");
     }
 
-    const expiresAtMs = new Date(data.expiresAt).getTime();
     const now = Date.now();
-    const ttlMs = Math.max(0, expiresAtMs - now);
-
     const mapped: KeyDto = {
-      id: data.cardId,
+      id: FIXED_CARD_ID,
       value: "",
       createdAt: now,
-      ttl: ttlMs,
-      qrPayload: JSON.stringify(data),
+      ttl: 0,
+      qrPayload: JSON.stringify({ cardId: FIXED_CARD_ID, ctr: data.ctr, tag: data.tag }),
     };
     return mapped;
   };
@@ -70,8 +66,8 @@ const KeyPage = () => {
       setQrData(key.qrPayload ?? JSON.stringify(key));
 
       toast({
-        title: "Ключ создан",
-        description: "QR-код готов к использованию",
+        title: "QR сгенерирован",
+        description: "Данные получены от эмулятора",
       });
     } catch (err: any) {
       console.error("Ошибка генерации ключа:", err);

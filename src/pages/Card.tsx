@@ -30,32 +30,18 @@ const CardPage = () => {
     setIsScanning(false);
     
     try {
-      // Expect QR payload with card info: { cardId, ... }
-      const parsed = JSON.parse(qrData) as { cardId?: string } & Record<string, unknown>;
-      const cardId = parsed.cardId;
-      if (!cardId) {
-        throw new Error("QR не содержит cardId");
+      // Expect QR payload with verification data: { cardId, ctr, tag }
+      const parsed = JSON.parse(qrData) as { cardId?: string; ctr?: string; tag?: string } & Record<string, unknown>;
+      const { cardId, ctr, tag } = parsed;
+      if (!cardId || !ctr || !tag) {
+        throw new Error("QR должен содержать cardId, ctr и tag");
       }
 
-      // Ask backend emulator for ctr/tag
-      const simRes = await fetch(`${API_BASE}/api/sim/response/${encodeURIComponent(cardId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!simRes.ok) {
-        const text = await simRes.text().catch(() => "");
-        throw new Error(`Эмулятор вернул ${simRes.status}: ${text || simRes.statusText}`);
-      }
-      const sim: SimResponse = await simRes.json();
-      if (sim.status !== "OK" || !sim.ctr || !sim.tag) {
-        throw new Error("Не удалось получить ctr/tag");
-      }
-
-      // Verify on backend
+      // Verify on backend using values from QR
       const verifyRes = await fetch(`${API_BASE}/api/cards/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId, ctr: sim.ctr, tag: sim.tag }),
+        body: JSON.stringify({ cardId, ctr, tag }),
       });
       if (!verifyRes.ok) {
         const text = await verifyRes.text().catch(() => "");
