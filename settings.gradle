@@ -1,2 +1,6 @@
 rootProject.name = 'cityItHack'
 include('backend')
+include('offline-controller')
+include('card-simulator')
+include('controller-simulator')
+include('demo')

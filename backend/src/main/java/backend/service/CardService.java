@@ -1,8 +1,16 @@
 package backend.service;
 
+import backend.dto.CreateCardRequest;
+import backend.dto.CreateCardResponse;
+import backend.model.AccessHistory;
+import backend.model.AuditEvent;
 import backend.model.CardRecord;
+import backend.model.UserRole;
 import backend.repo.CardRepository;
 import backend.util.B64Url;
+import backend.util.KeyWrapService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Mac;
@@ -16,47 +24,178 @@ import java.util.UUID;
 public class CardService {
     private final SecureRandom secureRandom = new SecureRandom();
     private final CardRepository cardRepository;
+    private final KeyWrapService keyWrapService;
+    private final QrCodeService qrCodeService;
+    private final AuditService auditService;
+    
+    @Autowired
+    private KeyRotationService keyRotationService;
 
-    public CardService(CardRepository cardRepository) {
+    public CardService(CardRepository cardRepository, KeyWrapService keyWrapService, QrCodeService qrCodeService, AuditService auditService) {
         this.cardRepository = cardRepository;
+        this.keyWrapService = keyWrapService;
+        this.qrCodeService = qrCodeService;
+        this.auditService = auditService;
     }
 
-    public CardRecord createCard() {
-        byte[] cardIdBytes = new byte[16];
-        byte[] kMasterBytes = new byte[32];
-        secureRandom.nextBytes(cardIdBytes);
-        secureRandom.nextBytes(kMasterBytes);
-        String encodedCardId = B64Url.encode(cardIdBytes);
-        String encodedKMaster = B64Url.encode(kMasterBytes);
-        CardRecord cardRecord = new CardRecord(encodedCardId, encodedKMaster);
-        return cardRepository.save(cardRecord);
+    public CreateCardResponse createCardWithRole(CreateCardRequest request, HttpServletRequest httpRequest) {
+        try {
+            UserRole role = UserRole.fromString(request.getUserRole());
+            
+            byte[] cardIdBytes = new byte[16];
+            byte[] kMasterBytes = new byte[32];
+            secureRandom.nextBytes(cardIdBytes);
+            secureRandom.nextBytes(kMasterBytes);
+            
+            String encodedCardId = B64Url.encode(cardIdBytes);
+            String wrappedKMaster = B64Url.encode(kMasterBytes);
+            
+            CardRecord cardRecord = new CardRecord(encodedCardId, wrappedKMaster);
+            cardRecord.setOwner(request.getOwner());
+            cardRecord.setUserRole(role.getRoleName());
+            cardRecord.setKeyVersion(1);
+            
+            Instant now = Instant.now();
+            cardRecord.setCreatedAt(now);
+            cardRecord.setExpiresAt(now.plusSeconds(request.getTtlSeconds()));
+            cardRecord.setNextRotationAt(calculateNextRotation(role, 1));
+            cardRecord.setActive(true);
+            
+            if (request.isGenerateQr()) {
+                String qrCode = qrCodeService.generateQrCode(encodedCardId, request.getOwner(), role.getRoleName());
+                cardRecord.setQrCode(qrCode);
+            }
+            
+            cardRecord = cardRepository.save(cardRecord);
+            
+            // Логирование аудита
+            auditService.logEvent(
+                AuditEvent.EventType.CARD_CREATED,
+                AuditEvent.EventCategory.ADMINISTRATION,
+                encodedCardId,
+                null,
+                request.getOwner(),
+                role.getRoleName(),
+                true,
+                "Card created successfully with role " + role.getRoleName(),
+                httpRequest
+            );
+            
+            CreateCardResponse response = new CreateCardResponse();
+            response.setStatus("OK");
+            response.setCardId(cardRecord.getCardId());
+            response.setOwner(cardRecord.getOwner());
+            response.setExpiresAt(cardRecord.getExpiresAt().toString());
+            response.setUserRole(cardRecord.getUserRole());
+            response.setKeyVersion(cardRecord.getKeyVersion());
+            response.setQrCode(cardRecord.getQrCode());
+            
+            return response;
+        } catch (Exception e) {
+            CreateCardResponse response = new CreateCardResponse();
+            response.setStatus("FAIL");
+            return response;
+        }
     }
 
     public CardRecord personalize(String owner, long ttlSeconds) {
-        CardRecord card = createCard();
-        card.setOwner(owner);
-        Instant now = Instant.now();
-        card.setCreatedAt(now);
-        card.setExpiresAt(now.plusSeconds(ttlSeconds));
-        card.setActive(true);
-        return cardRepository.save(card);
+        CreateCardRequest request = new CreateCardRequest();
+        request.setOwner(owner);
+        request.setTtlSeconds(ttlSeconds);
+        request.setUserRole("permanent");
+        
+        CreateCardResponse response = createCardWithRole(request, null);
+        if ("OK".equals(response.getStatus())) {
+            return cardRepository.findById(response.getCardId()).orElse(null);
+        }
+        return null;
     }
 
     public Optional<CardRecord> findById(String cardId) {
         return cardRepository.findById(cardId);
     }
 
-    public boolean verifyTruncTag(String cardIdB64, byte[] ctrLE, byte[] tag16) {
+    public boolean verifyTruncTag(String cardIdB64, byte[] ctrLE, byte[] tag16, String readerId, HttpServletRequest httpRequest) {
+        long startTime = System.currentTimeMillis();
         Optional<CardRecord> existing = cardRepository.findById(cardIdB64);
         CardRecord cardRecord = existing.orElse(null);
-        if (cardRecord == null) return false;
-        if (!cardRecord.isActive()) return false;
-        if (cardRecord.getExpiresAt() != null && Instant.now().isAfter(cardRecord.getExpiresAt())) return false;
+        
+        if (cardRecord == null) {
+            auditService.logEvent(
+                AuditEvent.EventType.ACCESS_DENIED,
+                AuditEvent.EventCategory.AUTHENTICATION,
+                cardIdB64,
+                readerId,
+                null,
+                null,
+                false,
+                "Card not found",
+                "CARD_NOT_FOUND",
+                null,
+                httpRequest
+            );
+            return false;
+        }
+        
+        if (!cardRecord.isActive()) {
+            auditService.logEvent(
+                AuditEvent.EventType.ACCESS_DENIED,
+                AuditEvent.EventCategory.AUTHENTICATION,
+                cardIdB64,
+                readerId,
+                cardRecord.getOwner(),
+                cardRecord.getUserRole(),
+                false,
+                "Card inactive",
+                "CARD_INACTIVE",
+                null,
+                httpRequest
+            );
+            return false;
+        }
+        
+        if (cardRecord.getExpiresAt() != null && Instant.now().isAfter(cardRecord.getExpiresAt())) {
+            auditService.logEvent(
+                AuditEvent.EventType.ACCESS_DENIED,
+                AuditEvent.EventCategory.AUTHENTICATION,
+                cardIdB64,
+                readerId,
+                cardRecord.getOwner(),
+                cardRecord.getUserRole(),
+                false,
+                "Card expired",
+                "CARD_EXPIRED",
+                null,
+                httpRequest
+            );
+            return false;
+        }
+        
+        if (keyRotationService.shouldRotateKey(cardRecord)) {
+            keyRotationService.rotateCardKey(cardRecord);
+            cardRecord = cardRepository.findById(cardIdB64).orElse(null);
+            if (cardRecord == null) return false;
+        }
+        
         long ctrValue = le64ToLong(ctrLE);
         Long last = cardRecord.getLastCtr();
         if (last != null && ctrValue <= last) {
+            auditService.logEvent(
+                AuditEvent.EventType.ACCESS_DENIED,
+                AuditEvent.EventCategory.SECURITY,
+                cardIdB64,
+                readerId,
+                cardRecord.getOwner(),
+                cardRecord.getUserRole(),
+                false,
+                "Replay attack detected",
+                "REPLAY_ATTACK",
+                "Counter value: " + ctrValue + ", Last counter: " + last,
+                httpRequest
+            );
             return false;
         }
+        
         try {
             byte[] cardId = B64Url.decode(cardRecord.getCardId());
             byte[] kMaster = B64Url.decode(cardRecord.getkMaster());
@@ -66,10 +205,104 @@ public class CardService {
             byte[] fullTag = hmacSha256(kMaster, ad);
             byte[] expectedTag16 = java.util.Arrays.copyOf(fullTag, 16);
             boolean ok = constantTimeEquals(expectedTag16, tag16);
-            if (!ok) return false;
+            
+            long responseTime = System.currentTimeMillis() - startTime;
+            
+            if (!ok) {
+                auditService.logEvent(
+                    AuditEvent.EventType.ACCESS_DENIED,
+                    AuditEvent.EventCategory.AUTHENTICATION,
+                    cardIdB64,
+                    readerId,
+                    cardRecord.getOwner(),
+                    cardRecord.getUserRole(),
+                    false,
+                    "Invalid authentication",
+                    "INVALID_AUTH",
+                    null,
+                    httpRequest
+                );
+                
+                auditService.logAccess(
+                    cardIdB64,
+                    readerId,
+                    cardRecord.getOwner(),
+                    cardRecord.getUserRole(),
+                    AccessHistory.AccessType.CARD_VERIFICATION,
+                    false,
+                    ctrValue,
+                    "Invalid authentication",
+                    responseTime,
+                    null,
+                    httpRequest
+                );
+                return false;
+            }
+            
             int updated = cardRepository.updateLastCtrIfGreater(cardIdB64, ctrValue);
-            return updated > 0;
+            boolean success = updated > 0;
+            
+            if (success) {
+                auditService.logEvent(
+                    AuditEvent.EventType.ACCESS_GRANTED,
+                    AuditEvent.EventCategory.AUTHENTICATION,
+                    cardIdB64,
+                    readerId,
+                    cardRecord.getOwner(),
+                    cardRecord.getUserRole(),
+                    true,
+                    "Access granted",
+                    null,
+                    null,
+                    httpRequest
+                );
+                
+                auditService.logAccess(
+                    cardIdB64,
+                    readerId,
+                    cardRecord.getOwner(),
+                    cardRecord.getUserRole(),
+                    AccessHistory.AccessType.CARD_VERIFICATION,
+                    true,
+                    ctrValue,
+                    null,
+                    responseTime,
+                    null,
+                    httpRequest
+                );
+            }
+            
+            return success;
         } catch (java.security.NoSuchAlgorithmException | java.security.InvalidKeyException e) {
+            long responseTime = System.currentTimeMillis() - startTime;
+            
+            auditService.logEvent(
+                AuditEvent.EventType.ACCESS_DENIED,
+                AuditEvent.EventCategory.SYSTEM,
+                cardIdB64,
+                readerId,
+                cardRecord.getOwner(),
+                cardRecord.getUserRole(),
+                false,
+                "System error during verification",
+                "SYSTEM_ERROR",
+                e.getMessage(),
+                httpRequest
+            );
+            
+            auditService.logAccess(
+                cardIdB64,
+                readerId,
+                cardRecord.getOwner(),
+                cardRecord.getUserRole(),
+                AccessHistory.AccessType.CARD_VERIFICATION,
+                false,
+                ctrValue,
+                "System error: " + e.getMessage(),
+                responseTime,
+                null,
+                httpRequest
+            );
             return false;
         }
     }
@@ -111,6 +344,30 @@ public class CardService {
             v = (v << 8) | (le8[i] & 0xFFL);
         }
         return v;
+    }
+    
+    private Instant calculateNextRotation(UserRole role, int keyVersion) {
+        Instant now = Instant.now();
+        
+        long rotationIntervalSeconds;
+        switch (role) {
+            case ADMIN:
+                rotationIntervalSeconds = 7 * 24 * 60 * 60L; // 1 неделя
+                break;
+            case PERMANENT:
+                rotationIntervalSeconds = 30 * 24 * 60 * 60L; // 1 месяц
+                break;
+            case TEMPORARY:
+                rotationIntervalSeconds = 3 * 24 * 60 * 60L; // 3 дня
+                break;
+            case GUEST:
+                rotationIntervalSeconds = 12 * 60 * 60L; // 12 часов
+                break;
+            default:
+                rotationIntervalSeconds = 30 * 24 * 60 * 60L; // 1 месяц по умолчанию
+        }
+        
+        return now.plusSeconds(rotationIntervalSeconds);
     }
 }
 

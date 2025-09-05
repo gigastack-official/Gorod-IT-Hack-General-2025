@@ -5,6 +5,9 @@ public class CreateCardResponse {
     private String cardId;
     private String owner;
     private String expiresAt;
+    private String userRole;
+    private String qrCode;
+    private Integer keyVersion;
 
     public CreateCardResponse() {}
 
@@ -23,6 +26,12 @@ public class CreateCardResponse {
     public void setOwner(String owner) { this.owner = owner; }
     public String getExpiresAt() { return expiresAt; }
     public void setExpiresAt(String expiresAt) { this.expiresAt = expiresAt; }
+    public String getUserRole() { return userRole; }
+    public void setUserRole(String userRole) { this.userRole = userRole; }
+    public String getQrCode() { return qrCode; }
+    public void setQrCode(String qrCode) { this.qrCode = qrCode; }
+    public Integer getKeyVersion() { return keyVersion; }
+    public void setKeyVersion(Integer keyVersion) { this.keyVersion = keyVersion; }
 }
 
 
