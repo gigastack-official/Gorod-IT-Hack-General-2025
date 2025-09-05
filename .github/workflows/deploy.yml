@@ -29,10 +29,6 @@ jobs:
 
       - name: Запуск docker compose на VDS (только backend+postgres)
         run: |
-          ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "cd /opt/crypto-access && docker compose up -d --build backend postgres"
-
-      - name: Запуск фронтенда в docker compose
-        run: |
-          ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "cd /opt/crypto-access && docker compose up -d --build frontend"
+          ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "cd /opt/crypto-access && docker compose up -d --build"
 
 

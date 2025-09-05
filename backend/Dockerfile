@@ -1,21 +1,20 @@
 # ---- Build stage ----
     FROM public.ecr.aws/docker/library/gradle:8.10.0-jdk17 AS build
     WORKDIR /app
-    ENV JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true"
+    # Иногда помогает при сетевых капризах
+    ENV GRADLE_OPTS="-Djava.net.preferIPv4Stack=true"
     
-    # 1) Кладём wrapper и конфиги, чтобы прогреть кэш плагинов
-    COPY gradlew gradlew.bat ./
-    COPY gradle/ ./gradle/
+    # 1) Кладём только gradle-декларации, чтобы прогреть кэш плагинов/зависимостей
     COPY backend/settings.gradle* backend/build.gradle* ./backend/
-    # если gradle.properties отсутствует — создадим пустой
+    # если нужен gradle.properties, но его нет — создадим пустой (опционально)
     RUN test -f backend/gradle.properties || touch backend/gradle.properties
     
-    # Прогрев кэша (без исходников)
-    RUN ./gradlew -p backend --no-daemon help
+    # Прогрев кэша плагинов/репозиториев (БЕЗ wrapper!)
+    RUN gradle -p backend --no-daemon help
     
-    # 2) Теперь код
+    # 2) Кладём остальной код и собираем jar
     COPY . .
-    RUN ./gradlew -p backend clean bootJar --no-daemon
+    RUN gradle -p backend clean bootJar --no-daemon
     
     # ---- Run stage ----
     FROM public.ecr.aws/amazoncorretto/amazoncorretto:17
