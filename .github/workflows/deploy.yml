@@ -31,11 +31,8 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "cd /opt/crypto-access && docker compose up -d --build backend postgres"
 
-      - name: Сборка фронтенда и выкладка статики на VDS
+      - name: Запуск фронтенда в docker compose
         run: |
-          npm ci --prefix frontend
-          npm run build --prefix frontend
-          ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "mkdir -p /var/www/gigastack"
-          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" frontend/dist/ root@gigastack.v6.rocks:/var/www/gigastack/
+          ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "cd /opt/crypto-access && docker compose up -d --build frontend"
 
 
