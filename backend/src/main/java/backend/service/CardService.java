@@ -115,12 +115,35 @@ public class CardService {
         return cardRepository.findById(cardId);
     }
 
+    public Optional<CardRecord> setQrForCard(String cardId, String owner, String userRole, HttpServletRequest httpRequest) {
+        return cardRepository.findById(cardId).map(card -> {
+            String qrCode = qrCodeService.generateQrCode(cardId, owner != null ? owner : card.getOwner(), userRole != null ? userRole : card.getUserRole());
+            card.setQrCode(qrCode);
+            CardRecord saved = cardRepository.save(card);
+
+            auditService.logEvent(
+                AuditEvent.EventType.QR_GENERATED,
+                AuditEvent.EventCategory.ADMINISTRATION,
+                cardId,
+                null,
+                saved.getOwner(),
+                saved.getUserRole(),
+                true,
+                "QR generated for card",
+                httpRequest
+            );
+            return saved;
+        });
+    }
+
     public boolean verifyTruncTag(String cardIdB64, byte[] ctrLE, byte[] tag16, String readerId, HttpServletRequest httpRequest) {
         long startTime = System.currentTimeMillis();
+        long ctrValue = le64ToLong(ctrLE);
         Optional<CardRecord> existing = cardRepository.findById(cardIdB64);
         CardRecord cardRecord = existing.orElse(null);
         
         if (cardRecord == null) {
+            long responseTime = System.currentTimeMillis() - startTime;
             auditService.logEvent(
                 AuditEvent.EventType.ACCESS_DENIED,
                 AuditEvent.EventCategory.AUTHENTICATION,
@@ -134,10 +157,24 @@ public class CardService {
                 null,
                 httpRequest
             );
+            auditService.logAccess(
+                cardIdB64,
+                readerId,
+                null,
+                null,
+                AccessHistory.AccessType.CARD_VERIFICATION,
+                false,
+                ctrValue >= 0 ? ctrValue : null,
+                "Card not found",
+                responseTime,
+                null,
+                httpRequest
+            );
             return false;
         }
         
         if (!cardRecord.isActive()) {
+            long responseTime = System.currentTimeMillis() - startTime;
             auditService.logEvent(
                 AuditEvent.EventType.ACCESS_DENIED,
                 AuditEvent.EventCategory.AUTHENTICATION,
@@ -151,10 +188,24 @@ public class CardService {
                 null,
                 httpRequest
             );
+            auditService.logAccess(
+                cardIdB64,
+                readerId,
+                cardRecord.getOwner(),
+                cardRecord.getUserRole(),
+                AccessHistory.AccessType.CARD_VERIFICATION,
+                false,
+                ctrValue >= 0 ? ctrValue : null,
+                "Card inactive",
+                responseTime,
+                null,
+                httpRequest
+            );
             return false;
         }
         
         if (cardRecord.getExpiresAt() != null && Instant.now().isAfter(cardRecord.getExpiresAt())) {
+            long responseTime = System.currentTimeMillis() - startTime;
             auditService.logEvent(
                 AuditEvent.EventType.ACCESS_DENIED,
                 AuditEvent.EventCategory.AUTHENTICATION,
@@ -168,6 +219,19 @@ public class CardService {
                 null,
                 httpRequest
             );
+            auditService.logAccess(
+                cardIdB64,
+                readerId,
+                cardRecord.getOwner(),
+                cardRecord.getUserRole(),
+                AccessHistory.AccessType.CARD_VERIFICATION,
+                false,
+                ctrValue >= 0 ? ctrValue : null,
+                "Card expired",
+                responseTime,
+                null,
+                httpRequest
+            );
             return false;
         }
         
@@ -177,9 +241,9 @@ public class CardService {
             if (cardRecord == null) return false;
         }
         
-        long ctrValue = le64ToLong(ctrLE);
         Long last = cardRecord.getLastCtr();
         if (last != null && ctrValue <= last) {
+            long responseTime = System.currentTimeMillis() - startTime;
             auditService.logEvent(
                 AuditEvent.EventType.ACCESS_DENIED,
                 AuditEvent.EventCategory.SECURITY,
@@ -191,6 +255,19 @@ public class CardService {
                 "Replay attack detected",
                 "REPLAY_ATTACK",
                 "Counter value: " + ctrValue + ", Last counter: " + last,
+                httpRequest
+            );
+            auditService.logAccess(
+                cardIdB64,
+                readerId,
+                cardRecord.getOwner(),
+                cardRecord.getUserRole(),
+                AccessHistory.AccessType.CARD_VERIFICATION,
+                false,
+                ctrValue,
+                "Replay attack detected",
+                responseTime,
+                null,
                 httpRequest
             );
             return false;

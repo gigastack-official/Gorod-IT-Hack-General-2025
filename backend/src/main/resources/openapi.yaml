@@ -14,6 +14,7 @@ info:
     - Мониторинг подозрительной активности и безопасности
     - Статистика и аналитика по всем операциям
     - Экспорт данных аудита в CSV формате
+    - Анти‑replay: повторное использование одного и того же кода (ctr/tag) фиксируется как отказ в доступе (SECURITY: REPLAY_ATTACK) и логируется в аудит и историю
 servers:
   - url: http://localhost:8080
     description: Local server
@@ -74,13 +75,13 @@ paths:
               $ref: '#/components/schemas/VerifyRequest'
       responses:
         '200':
-          description: Результат проверки
+          description: Результат проверки ("OK" при успешной верификации, "FAIL" при неуспешной, включая анти‑replay)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/StatusResponse'
         '400':
-          description: Ошибка валидации (отсутствует X-Reader-Id)
+          description: Ошибка валидации (например, отсутствует X-Reader-Id или некорректные ctr/tag)
           content:
             application/json:
               schema:
@@ -196,7 +197,7 @@ paths:
           description: base64url(16) идентификатор карты
       responses:
         '200':
-          description: QR код сгенерирован
+          description: QR код сгенерирован, сохранен в карточке и событие аудита записано (QR_GENERATED)
           content:
             application/json:
               schema:

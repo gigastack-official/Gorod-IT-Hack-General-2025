@@ -3,6 +3,7 @@ package backend.api;
 import backend.service.QrCodeService;
 import backend.service.CardService;
 import org.springframework.http.ResponseEntity;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -56,18 +57,15 @@ public class QrController {
     }
     
     @GetMapping("/generate/{cardId}")
-    public ResponseEntity<Map<String, String>> generateQrForCard(@PathVariable String cardId) {
-        return cardService.findById(cardId)
+    public ResponseEntity<Map<String, String>> generateQrForCard(@PathVariable String cardId, HttpServletRequest httpRequest) {
+        return cardService.setQrForCard(cardId, null, null, httpRequest)
             .map(card -> {
-                String qrCode = qrCodeService.generateQrCode(cardId, card.getOwner(), card.getUserRole());
-                
                 Map<String, String> response = new HashMap<>();
                 response.put("status", "OK");
                 response.put("cardId", cardId);
-                response.put("qrCode", qrCode);
+                response.put("qrCode", card.getQrCode());
                 response.put("owner", card.getOwner());
                 response.put("userRole", card.getUserRole());
-                
                 return ResponseEntity.ok(response);
             })
             .orElse(ResponseEntity.notFound().build());
