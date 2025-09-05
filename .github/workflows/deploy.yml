@@ -27,12 +27,6 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "mkdir -p /opt/crypto-access"
           rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ root@gigastack.v6.rocks:/opt/crypto-access/
 
-      - name: Сборка backend jar локально и отправка на VDS
-        run: |
-          ./backend/gradlew -p backend clean build -x test
-          ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "mkdir -p /opt/crypto-access/backend/build/libs"
-          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" backend/build/libs/ root@gigastack.v6.rocks:/opt/crypto-access/backend/build/libs/
-
       - name: Запуск docker compose на VDS (только backend+postgres)
         run: |
           ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "cd /opt/crypto-access && docker compose up -d --build backend postgres"
