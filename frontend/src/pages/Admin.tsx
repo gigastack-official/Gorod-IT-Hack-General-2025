@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,18 +29,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type CardRecord = {
   cardId: string;
-  kMaster?: string;
   owner?: string;
   createdAt?: string | null;
   expiresAt?: string | null;
   active?: boolean;
+  userRole?: string;
+  keyVersion?: number;
+  nextRotationAt?: string | null;
+  qrCode?: string | null;
+  lastCtr?: number | null;
 };
 
 type StatusResponse = {
   status: "OK" | "FAIL";
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.56:8080";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.188:8080";
 
 const AdminPage = () => {
   const { toast } = useToast();
@@ -49,13 +53,21 @@ const AdminPage = () => {
   const [creating, setCreating] = useState(false);
   const [owner, setOwner] = useState("");
   const [ttlSeconds, setTtlSeconds] = useState<number>(86400);
+  const [userRole, setUserRole] = useState<string>("permanent");
+  const [generateQr, setGenerateQr] = useState<boolean>(false);
   const [extendSeconds, setExtendSeconds] = useState<number>(3600);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  const fetchCards = async () => {
+  const fetchCards = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/list`);
+      const res = await fetch(`${API_BASE}/api/admin/list`, {
+        headers: {
+          "User-Agent": "CryptoKeyGate-Frontend/1.0.0",
+          "X-Device-Type": "WebReader",
+          "X-Client-Version": "1.0.0"
+        }
+      });
       if (!res.ok) throw new Error(`list ${res.status}`);
       const data = (await res.json()) as CardRecord[];
       setCards(data);
@@ -64,11 +76,11 @@ const AdminPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchCards();
-  }, []);
+  }, [fetchCards]);
 
   const createCard = async () => {
     if (!owner) return;
@@ -77,10 +89,18 @@ const AdminPage = () => {
       const res = await fetch(`${API_BASE}/api/cards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ owner, ttlSeconds }),
+        body: JSON.stringify({ owner, ttlSeconds, userRole, generateQr }),
       });
       if (!res.ok) throw new Error(`create ${res.status}`);
-      const created = await res.json() as { status: "OK" | "FAIL"; cardId: string; owner: string; expiresAt: string };
+      const created = await res.json() as { 
+        status: "OK" | "FAIL"; 
+        cardId: string; 
+        owner: string; 
+        expiresAt: string; 
+        userRole: string; 
+        qrCode?: string; 
+        keyVersion: number;
+      };
       if (created.status !== "OK") throw new Error("FAIL");
       setCards(prev => [{
         cardId: created.cardId,
@@ -88,8 +108,11 @@ const AdminPage = () => {
         createdAt: new Date().toISOString(),
         expiresAt: created.expiresAt,
         active: true,
+        userRole: created.userRole,
+        keyVersion: created.keyVersion,
+        qrCode: created.qrCode,
       }, ...prev]);
-      toast({ title: "Карта создана", description: created.cardId });
+      toast({ title: "Карта создана", description: `${created.cardId} (${created.userRole})` });
       setOwner("");
     } catch (e) {
       toast({ title: "Ошибка", description: "Не удалось создать карту", variant: "destructive" });
@@ -159,7 +182,7 @@ const AdminPage = () => {
 
         <Card className="p-6 bg-gradient-card shadow-card">
           <h3 className="font-semibold mb-4">Создать карту</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="owner">Владелец</Label>
               <Input id="owner" value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Иван" />
@@ -168,11 +191,37 @@ const AdminPage = () => {
               <Label htmlFor="ttl">TTL (сек)</Label>
               <Input id="ttl" type="number" min={60} value={ttlSeconds} onChange={(e) => setTtlSeconds(Number(e.target.value) || 60)} />
             </div>
+            <div>
+              <Label htmlFor="userRole">Роль</Label>
+              <Select value={userRole} onValueChange={setUserRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Администратор</SelectItem>
+                  <SelectItem value="permanent">Постоянный</SelectItem>
+                  <SelectItem value="temporary">Временный</SelectItem>
+                  <SelectItem value="guest">Гость</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-end">
               <Button onClick={createCard} disabled={creating || !owner || ttlSeconds < 60} className="w-full bg-gradient-primary">
                 {creating ? "Создание..." : "Создать"}
               </Button>
             </div>
+          </div>
+          <div className="mt-4 flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="generateQrAdmin"
+              checked={generateQr}
+              onChange={(e) => setGenerateQr(e.target.checked)}
+              className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
+            />
+            <label htmlFor="generateQrAdmin" className="text-sm text-muted-foreground">
+              Сгенерировать QR-код для гостевого пропуска
+            </label>
           </div>
         </Card>
 
@@ -208,6 +257,9 @@ const AdminPage = () => {
                     <div className="flex items-center gap-2">
                       <span><strong>Владелец:</strong> {c.owner || "—"}</span>
                       <Badge variant={c.active ? "default" : "destructive"}>{c.active ? "Активна" : "Отключена"}</Badge>
+                      {c.userRole && (
+                        <Badge variant="outline" className="capitalize">{c.userRole}</Badge>
+                      )}
                     </div>
                     <div className="text-muted-foreground">
                       <span><strong>Создан:</strong> {prettyDate(c.createdAt)}</span>
