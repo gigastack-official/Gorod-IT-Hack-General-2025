@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Shield, Smartphone, Monitor, Settings, History, BarChart3, AlertTriangle } from "lucide-react";
+import { Shield, Smartphone, Monitor, Settings, History, BarChart3 } from "lucide-react";
 
 const Navigation = () => {
   const location = useLocation();
@@ -13,7 +13,6 @@ const Navigation = () => {
     { path: "/admin", label: "Админ", icon: Settings, variant: "secondary" as const },
     { path: "/access-history", label: "История", icon: History, variant: "secondary" as const },
     { path: "/audit-dashboard", label: "Аудит", icon: BarChart3, variant: "secondary" as const },
-    { path: "/security-monitoring", label: "Безопасность", icon: AlertTriangle, variant: "secondary" as const },
   ];
 
   return (

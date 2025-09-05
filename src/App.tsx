@@ -9,7 +9,6 @@ import Reader from "./pages/Reader";
 import Admin from "./pages/Admin";
 import AccessHistory from "./pages/AccessHistory";
 import AuditDashboard from "./pages/AuditDashboard";
-import SecurityMonitoring from "./pages/SecurityMonitoring";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,7 +26,6 @@ const App = () => (
           <Route path="/admin" element={<Admin />} />
           <Route path="/access-history" element={<AccessHistory />} />
           <Route path="/audit-dashboard" element={<AuditDashboard />} />
-          <Route path="/security-monitoring" element={<SecurityMonitoring />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
