@@ -22,7 +22,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Copy files to VDS
+      - name: Копирование файлов на VDS
         run: |
           ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "mkdir -p /opt/crypto-access"
           rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ root@gigastack.v6.rocks:/opt/crypto-access/
@@ -35,7 +35,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "echo $DOCKERHUB_TOKEN | docker login -u $DOCKERHUB_USERNAME --password-stdin"
 
-      - name: Build and run docker compose on VDS
+      - name: Сборка и запуск docker compose на VDS
         run: |
           ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "cd /opt/crypto-access && docker compose pull || true && docker compose up -d --build"
 

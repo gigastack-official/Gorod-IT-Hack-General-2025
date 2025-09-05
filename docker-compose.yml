@@ -35,7 +35,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=/api
+        - VITE_API_URL=https://gigastack.v6.rocks/api
     depends_on:
       - backend
     ports:
