@@ -27,6 +27,14 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "mkdir -p /opt/crypto-access"
           rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ root@gigastack.v6.rocks:/opt/crypto-access/
 
+      - name: Login to Docker registry (optional)
+        if: env.DOCKERHUB_USERNAME != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "echo $DOCKERHUB_TOKEN | docker login -u $DOCKERHUB_USERNAME --password-stdin"
+
       - name: Build and run docker compose on VDS
         run: |
           ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "cd /opt/crypto-access && docker compose pull || true && docker compose up -d --build"
