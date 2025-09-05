@@ -1,0 +1,33 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'ru.gigastack'
+version = '1.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Зависимости для демонстрации
+    implementation project(':offline-controller')
+    implementation project(':card-simulator')
+    implementation project(':controller-simulator')
+}
+
+application {
+    mainClass = 'ru.gigastack.demo.AccessControlDemo'
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'ru.gigastack.demo.AccessControlDemo'
+    }
+}

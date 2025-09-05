@@ -33,6 +33,18 @@ public class CardRecord {
     @Column(name = "last_ctr")
     private Long lastCtr;
 
+    @Column(name = "user_role", nullable = false, length = 32)
+    private String userRole = "permanent";
+
+    @Column(name = "key_version")
+    private Integer keyVersion = 1;
+
+    @Column(name = "next_rotation_at")
+    private Instant nextRotationAt;
+
+    @Column(name = "qr_code", length = 512)
+    private String qrCode;
+
     public CardRecord() {}
 
     public CardRecord(String cardId, String kMaster) {
@@ -54,6 +66,14 @@ public class CardRecord {
     public void setActive(boolean active) { this.active = active; }
     public Long getLastCtr() { return lastCtr; }
     public void setLastCtr(Long lastCtr) { this.lastCtr = lastCtr; }
+    public String getUserRole() { return userRole; }
+    public void setUserRole(String userRole) { this.userRole = userRole; }
+    public Integer getKeyVersion() { return keyVersion; }
+    public void setKeyVersion(Integer keyVersion) { this.keyVersion = keyVersion; }
+    public Instant getNextRotationAt() { return nextRotationAt; }
+    public void setNextRotationAt(Instant nextRotationAt) { this.nextRotationAt = nextRotationAt; }
+    public String getQrCode() { return qrCode; }
+    public void setQrCode(String qrCode) { this.qrCode = qrCode; }
 }
 
 

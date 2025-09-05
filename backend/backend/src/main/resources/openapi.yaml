@@ -1,13 +1,24 @@
 openapi: 3.0.3
 info:
   title: CityItHack Access Control API
-  version: 1.0.0
+  version: 2.1.0
   description: |
-    Система контроля доступа: создание карт, генерация ответа карты (эмулятор),
-    верификация на контроллере, администрирование карт.
+    Система контроля доступа с поддержкой:
+    - Создание карт с ролями пользователей (admin, permanent, temporary, guest)
+    - Автоматическая ротация ключей с нулевым простоем
+    - QR коды для гостевых пропусков
+    - Удаленная аттестация ридеров
+    - Аппаратная защищенность (обертка ключей AES-GCM)
+    - Полная система аудита и логирования событий
+    - История сканирований и верификаций с временными метками
+    - Мониторинг подозрительной активности и безопасности
+    - Статистика и аналитика по всем операциям
+    - Экспорт данных аудита в CSV формате
 servers:
   - url: http://localhost:8080
     description: Local server
+  - url: http://localhost:8081
+    description: Development server
 paths:
   /api/cards:
     post:
@@ -48,6 +59,13 @@ paths:
     post:
       summary: Верификация контроллером (HMAC-SHA256 trunc16)
       operationId: verifyCard
+      parameters:
+        - in: header
+          name: X-Reader-Id
+          required: true
+          schema:
+            type: string
+          description: Идентификатор аттестованного ридера
       requestBody:
         required: true
         content:
@@ -57,6 +75,12 @@ paths:
       responses:
         '200':
           description: Результат проверки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '400':
+          description: Ошибка валидации (отсутствует X-Reader-Id)
           content:
             application/json:
               schema:
@@ -136,6 +160,622 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/CardRecord'
+  /api/qr/verify:
+    post:
+      summary: Верификация QR кода
+      operationId: verifyQrCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QrVerifyRequest'
+      responses:
+        '200':
+          description: Результат проверки QR кода
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QrVerifyResponse'
+        '400':
+          description: Ошибка валидации QR кода
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QrVerifyResponse'
+  /api/qr/generate/{cardId}:
+    get:
+      summary: Генерация QR кода для карты
+      operationId: generateQrCode
+      parameters:
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+          description: base64url(16) идентификатор карты
+      responses:
+        '200':
+          description: QR код сгенерирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QrGenerateResponse'
+        '404':
+          description: Карта не найдена
+  /api/attest/challenge/{readerId}:
+    post:
+      summary: Генерация челленджа для аттестации ридера
+      operationId: generateAttestationChallenge
+      parameters:
+        - in: path
+          name: readerId
+          required: true
+          schema:
+            type: string
+          description: Идентификатор ридера
+      responses:
+        '200':
+          description: Челлендж сгенерирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestationChallenge'
+  /api/attest/verify/{readerId}:
+    post:
+      summary: Верификация аттестации ридера
+      operationId: verifyAttestation
+      parameters:
+        - in: path
+          name: readerId
+          required: true
+          schema:
+            type: string
+          description: Идентификатор ридера
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttestationVerifyRequest'
+      responses:
+        '200':
+          description: Аттестация успешна
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestationResponse'
+        '400':
+          description: Ошибка аттестации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestationResponse'
+  /api/attest/status/{readerId}:
+    get:
+      summary: Статус аттестации ридера
+      operationId: getAttestationStatus
+      parameters:
+        - in: path
+          name: readerId
+          required: true
+          schema:
+            type: string
+          description: Идентификатор ридера
+      responses:
+        '200':
+          description: Статус аттестации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestationStatus'
+  /api/audit/events:
+    get:
+      summary: Получить события аудита с фильтрами
+      operationId: getAuditEvents
+      parameters:
+        - in: query
+          name: eventType
+          schema:
+            type: string
+          description: Тип события для фильтрации
+        - in: query
+          name: eventCategory
+          schema:
+            type: string
+          description: Категория события для фильтрации
+        - in: query
+          name: cardId
+          schema:
+            type: string
+          description: ID карты для фильтрации
+        - in: query
+          name: readerId
+          schema:
+            type: string
+          description: ID ридера для фильтрации
+        - in: query
+          name: success
+          schema:
+            type: boolean
+          description: Фильтр по успешности
+        - in: query
+          name: startTime
+          schema:
+            type: string
+            format: date-time
+          description: Начальное время для фильтрации
+        - in: query
+          name: endTime
+          schema:
+            type: string
+            format: date-time
+          description: Конечное время для фильтрации
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+          description: Номер страницы
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+          description: Размер страницы
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            default: eventTimestamp
+          description: Поле для сортировки
+        - in: query
+          name: sortDir
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+          description: Направление сортировки
+      responses:
+        '200':
+          description: Список событий аудита
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditEvent'
+                  totalElements:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  size:
+                    type: integer
+                  number:
+                    type: integer
+  /api/audit/access-history:
+    get:
+      summary: Получить историю доступа с фильтрами
+      operationId: getAccessHistory
+      parameters:
+        - in: query
+          name: cardId
+          schema:
+            type: string
+          description: ID карты для фильтрации
+        - in: query
+          name: readerId
+          schema:
+            type: string
+          description: ID ридера для фильтрации
+        - in: query
+          name: owner
+          schema:
+            type: string
+          description: Владелец карты для фильтрации
+        - in: query
+          name: accessType
+          schema:
+            type: string
+          description: Тип доступа для фильтрации
+        - in: query
+          name: success
+          schema:
+            type: boolean
+          description: Фильтр по успешности
+        - in: query
+          name: startTime
+          schema:
+            type: string
+            format: date-time
+          description: Начальное время для фильтрации
+        - in: query
+          name: endTime
+          schema:
+            type: string
+            format: date-time
+          description: Конечное время для фильтрации
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+          description: Номер страницы
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+          description: Размер страницы
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            default: accessTimestamp
+          description: Поле для сортировки
+        - in: query
+          name: sortDir
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+          description: Направление сортировки
+      responses:
+        '200':
+          description: История доступа
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccessHistory'
+                  totalElements:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  size:
+                    type: integer
+                  number:
+                    type: integer
+  /api/audit/last-access/{cardId}:
+    get:
+      summary: Получить последний доступ к карте
+      operationId: getLastAccess
+      parameters:
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+          description: ID карты
+      responses:
+        '200':
+          description: Последний доступ к карте
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessHistory'
+        '404':
+          description: Доступ не найден
+  /api/audit/last-successful-access/{cardId}:
+    get:
+      summary: Получить последний успешный доступ к карте
+      operationId: getLastSuccessfulAccess
+      parameters:
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+          description: ID карты
+      responses:
+        '200':
+          description: Последний успешный доступ к карте
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessHistory'
+        '404':
+          description: Успешный доступ не найден
+  /api/audit/statistics/events:
+    get:
+      summary: Получить статистику событий
+      operationId: getEventStatistics
+      responses:
+        '200':
+          description: Статистика событий
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditStatistics'
+  /api/audit/statistics/access:
+    get:
+      summary: Получить статистику доступа
+      operationId: getAccessStatistics
+      responses:
+        '200':
+          description: Статистика доступа
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessStatistics'
+  /api/audit/suspicious-activity:
+    get:
+      summary: Найти подозрительную активность
+      operationId: findSuspiciousActivity
+      parameters:
+        - in: query
+          name: maxFailures
+          schema:
+            type: integer
+            default: 5
+          description: Максимальное количество неудач для определения подозрительности
+      responses:
+        '200':
+          description: Список подозрительных событий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEvent'
+  /api/audit/frequent-failures:
+    get:
+      summary: Найти частые неудачные попытки доступа
+      operationId: findFrequentFailures
+      parameters:
+        - in: query
+          name: maxFailures
+          schema:
+            type: integer
+            default: 3
+          description: Максимальное количество неудач
+      responses:
+        '200':
+          description: Список частых неудач
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: string
+  /api/audit/suspicious-ips:
+    get:
+      summary: Найти подозрительные IP адреса
+      operationId: findSuspiciousIPs
+      parameters:
+        - in: query
+          name: maxFailures
+          schema:
+            type: integer
+            default: 5
+          description: Максимальное количество неудач
+      responses:
+        '200':
+          description: Список подозрительных IP адресов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: string
+  /api/audit/response-times:
+    get:
+      summary: Получить среднее время ответа по ридерам
+      operationId: getAverageResponseTimeByReader
+      responses:
+        '200':
+          description: Среднее время ответа по ридерам
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: string
+  /api/audit/count/events:
+    get:
+      summary: Получить количество событий за период
+      operationId: getEventCount
+      parameters:
+        - in: query
+          name: start
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Начальное время
+        - in: query
+          name: end
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Конечное время
+      responses:
+        '200':
+          description: Количество событий
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalEvents:
+                    type: integer
+                  cardCreated:
+                    type: integer
+                  cardVerified:
+                    type: integer
+                  accessGranted:
+                    type: integer
+                  accessDenied:
+                    type: integer
+  /api/audit/count/access:
+    get:
+      summary: Получить количество записей доступа за период
+      operationId: getAccessCount
+      parameters:
+        - in: query
+          name: start
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Начальное время
+        - in: query
+          name: end
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Конечное время
+      responses:
+        '200':
+          description: Количество записей доступа
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalAccess:
+                    type: integer
+                  successfulAccess:
+                    type: integer
+                  failedAccess:
+                    type: integer
+  /api/audit/cleanup:
+    post:
+      summary: Очистить старые записи аудита
+      operationId: cleanupOldRecords
+      parameters:
+        - in: query
+          name: retentionDays
+          schema:
+            type: integer
+            default: 90
+          description: Количество дней для хранения записей
+      responses:
+        '200':
+          description: Результат очистки
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [OK]
+                  message:
+                    type: string
+  /api/audit/export/events:
+    get:
+      summary: Экспорт событий аудита в CSV
+      operationId: exportEvents
+      parameters:
+        - in: query
+          name: eventType
+          schema:
+            type: string
+          description: Тип события для фильтрации
+        - in: query
+          name: eventCategory
+          schema:
+            type: string
+          description: Категория события для фильтрации
+        - in: query
+          name: cardId
+          schema:
+            type: string
+          description: ID карты для фильтрации
+        - in: query
+          name: readerId
+          schema:
+            type: string
+          description: ID ридера для фильтрации
+        - in: query
+          name: success
+          schema:
+            type: boolean
+          description: Фильтр по успешности
+        - in: query
+          name: startTime
+          schema:
+            type: string
+            format: date-time
+          description: Начальное время для фильтрации
+        - in: query
+          name: endTime
+          schema:
+            type: string
+            format: date-time
+          description: Конечное время для фильтрации
+      responses:
+        '200':
+          description: CSV файл с событиями аудита
+          content:
+            text/csv:
+              schema:
+                type: string
+  /api/audit/export/access-history:
+    get:
+      summary: Экспорт истории доступа в CSV
+      operationId: exportAccessHistory
+      parameters:
+        - in: query
+          name: cardId
+          schema:
+            type: string
+          description: ID карты для фильтрации
+        - in: query
+          name: readerId
+          schema:
+            type: string
+          description: ID ридера для фильтрации
+        - in: query
+          name: owner
+          schema:
+            type: string
+          description: Владелец карты для фильтрации
+        - in: query
+          name: accessType
+          schema:
+            type: string
+          description: Тип доступа для фильтрации
+        - in: query
+          name: success
+          schema:
+            type: boolean
+          description: Фильтр по успешности
+        - in: query
+          name: startTime
+          schema:
+            type: string
+            format: date-time
+          description: Начальное время для фильтрации
+        - in: query
+          name: endTime
+          schema:
+            type: string
+            format: date-time
+          description: Конечное время для фильтрации
+      responses:
+        '200':
+          description: CSV файл с историей доступа
+          content:
+            text/csv:
+              schema:
+                type: string
 components:
   schemas:
     CreateCardRequest:
@@ -150,6 +790,15 @@ components:
             format: int64
             minimum: 60
             example: 86400
+        userRole:
+            type: string
+            enum: [admin, permanent, temporary, guest]
+            default: permanent
+            example: permanent
+        generateQr:
+            type: boolean
+            default: false
+            example: false
     CreateCardResponse:
       type: object
       required: [status, cardId, owner, expiresAt]
@@ -166,6 +815,16 @@ components:
         expiresAt:
           type: string
           format: date-time
+        userRole:
+          type: string
+          enum: [admin, permanent, temporary, guest]
+        qrCode:
+          type: string
+          nullable: true
+          description: Base64URL encoded QR code
+        keyVersion:
+          type: integer
+          description: Версия ключа для ротации
     VerifyRequest:
       type: object
       required: [cardId, ctr, tag]
@@ -218,5 +877,267 @@ components:
           nullable: true
         active:
           type: boolean
+        userRole:
+          type: string
+          enum: [admin, permanent, temporary, guest]
+        keyVersion:
+          type: integer
+        nextRotationAt:
+          type: string
+          format: date-time
+          nullable: true
+        qrCode:
+          type: string
+          nullable: true
+        lastCtr:
+          type: integer
+          nullable: true
+    QrVerifyRequest:
+      type: object
+      required: [qrCode]
+      properties:
+        qrCode:
+          type: string
+          description: Base64URL encoded QR code
+    QrVerifyResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [OK, FAIL]
+        cardId:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+    QrGenerateResponse:
+      type: object
+      required: [status, cardId, qrCode]
+      properties:
+        status:
+          type: string
+          enum: [OK]
+        cardId:
+          type: string
+        qrCode:
+          type: string
+        owner:
+          type: string
+        userRole:
+          type: string
+    AttestationChallenge:
+      type: object
+      required: [challenge, readerId]
+      properties:
+        challenge:
+          type: string
+          description: UUID challenge string
+        readerId:
+          type: string
+    AttestationVerifyRequest:
+      type: object
+      required: [challenge, signature]
+      properties:
+        challenge:
+          type: string
+        signature:
+          type: string
+          description: Device signature
+    AttestationResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [OK, FAIL]
+        readerId:
+          type: string
+          nullable: true
+        attestedAt:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+    AttestationStatus:
+      type: object
+      required: [status, readerId]
+      properties:
+        status:
+          type: string
+          enum: [ATTESTED, NOT_ATTESTED]
+        readerId:
+          type: string
+        attestedAt:
+          type: string
+          nullable: true
+        ageMinutes:
+          type: integer
+          nullable: true
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        eventType:
+          type: string
+          description: Тип события (CARD_CREATED, ACCESS_GRANTED, etc.)
+        eventCategory:
+          type: string
+          description: Категория события (AUTHENTICATION, AUTHORIZATION, etc.)
+        cardId:
+          type: string
+          nullable: true
+        readerId:
+          type: string
+          nullable: true
+        owner:
+          type: string
+          nullable: true
+        userRole:
+          type: string
+          nullable: true
+        eventTimestamp:
+          type: string
+          format: date-time
+        success:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+        errorCode:
+          type: string
+          nullable: true
+        ipAddress:
+          type: string
+          nullable: true
+        userAgent:
+          type: string
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        additionalData:
+          type: string
+          nullable: true
+    AccessHistory:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        cardId:
+          type: string
+        readerId:
+          type: string
+        owner:
+          type: string
+          nullable: true
+        userRole:
+          type: string
+          nullable: true
+        accessTimestamp:
+          type: string
+          format: date-time
+        accessType:
+          type: string
+          description: Тип доступа (CARD_VERIFICATION, QR_SCAN, etc.)
+        success:
+          type: boolean
+        counterValue:
+          type: integer
+          format: int64
+          nullable: true
+        ipAddress:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        deviceInfo:
+          type: string
+          nullable: true
+        failureReason:
+          type: string
+          nullable: true
+        responseTimeMs:
+          type: integer
+          format: int64
+          nullable: true
+        additionalMetadata:
+          type: string
+          nullable: true
+    AuditStatistics:
+      type: object
+      properties:
+        eventTypes:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        eventCategories:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        successStats:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        dailyStats:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+    AccessStatistics:
+      type: object
+      properties:
+        accessTypes:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        readerStats:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        cardStats:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        successStats:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        dailyStats:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        hourlyStats:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
 
 
