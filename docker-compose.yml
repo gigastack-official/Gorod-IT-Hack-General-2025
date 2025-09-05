@@ -30,16 +30,7 @@ services:
     ports:
       - "8080:8080"
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=https://gigastack.v6.rocks/api
-    depends_on:
-      - backend
-    ports:
-      - "5173:80"
+  # frontend отдается внешним nginx, контейнер не требуется
 
 volumes:
   dbdata:

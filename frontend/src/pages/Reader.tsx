@@ -37,7 +37,7 @@ type CardRecord = {
   lastCtr?: number | null;
 };
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "https://gigastack.v6.rocks/api";
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "https://backend.gigastack.v6.rocks/api";
 
 const KeyPage = () => {
   const [currentKey, setCurrentKey] = useState<KeyDto | null>(null);
