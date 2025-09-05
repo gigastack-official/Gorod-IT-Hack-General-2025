@@ -163,17 +163,14 @@ const KeyPage = () => {
     setIsGenerating(true);
 
     try {
-          // Создаем новую карту с выбранными параметрами
+          // Используем существующую карту
           const selectedCard = cards.find(c => c.cardId === selectedCardId);
-          const cardData = await createCard(
-            selectedCard?.owner || selectedCardId,
-            ttlSeconds,
-            userRole,
-            generateQr
-          );
+          if (!selectedCard) {
+            throw new Error("Выбранная карта не найдена");
+          }
 
-          // Получаем ctr/tag для созданной карты
-          const key = await requestNewKey(cardData.cardId, ttlSeconds);
+          // Получаем ctr/tag для существующей карты
+          const key = await requestNewKey(selectedCard.cardId, ttlSeconds);
 
       setCurrentKey(key);
           
@@ -182,17 +179,14 @@ const KeyPage = () => {
             key.id,
             JSON.parse(key.qrPayload ?? '{}').ctr || 'generated',
             JSON.parse(key.qrPayload ?? '{}').tag || 'generated',
-            cardData.owner,
-            cardData.userRole
+            selectedCard.owner,
+            selectedCard.userRole
           );
           setQrData(qrData);
 
-          // Обновляем список карт
-          await fetchCards();
-
       toast({
             title: "QR сгенерирован",
-            description: `Для пользователя: ${cardData.owner} (${cardData.userRole})`,
+            description: `Для пользователя: ${selectedCard.owner} (${selectedCard.userRole})`,
       });
         } catch (err: unknown) {
       console.error("Ошибка генерации ключа:", err);

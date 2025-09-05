@@ -55,7 +55,9 @@ const AccessHistoryPage = () => {
   const fetchAccessHistory = useCallback(async () => {
     setLoading(true);
     try {
+      console.log('Fetching access history with filters:', filters);
       const response = await AuditService.getAccessHistory(filters);
+      console.log('Access history response:', response);
       setAccessHistory(response.content);
       setTotalPages(response.totalPages);
       setTotalElements(response.totalElements);
@@ -82,11 +84,16 @@ const AccessHistoryPage = () => {
 
   // Обработка изменения фильтров
   const handleFilterChange = (key: keyof AuditFilters, value: any) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value,
-      page: 0 // Сбрасываем страницу при изменении фильтров
-    }));
+    console.log('Filter change:', { key, value });
+    setFilters(prev => {
+      const newFilters = {
+        ...prev,
+        [key]: value,
+        page: 0 // Сбрасываем страницу при изменении фильтров
+      };
+      console.log('New filters:', newFilters);
+      return newFilters;
+    });
   };
 
   // Обработка пагинации
@@ -177,12 +184,13 @@ const AccessHistoryPage = () => {
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 onClick={fetchAccessHistory}
                 disabled={loading}
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Обновить
@@ -191,6 +199,7 @@ const AccessHistoryPage = () => {
                 onClick={handleExport}
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Экспорт CSV
@@ -245,7 +254,7 @@ const AccessHistoryPage = () => {
                 <Label htmlFor="success">Статус</Label>
                 <Select
                   value={filters.success?.toString() || "all"}
-                  onValueChange={(value) => handleFilterChange('success', value === "all" ? undefined : value === "true")}
+                  onValueChange={(value) => handleFilterChange('success', value === "all" ? undefined : value === "true" ? true : false)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Все статусы" />

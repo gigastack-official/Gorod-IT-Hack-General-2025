@@ -178,12 +178,13 @@ const AuditDashboardPage = () => {
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 onClick={fetchStatistics}
                 disabled={loading}
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Обновить
@@ -192,6 +193,7 @@ const AuditDashboardPage = () => {
                 onClick={handleExport}
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Экспорт

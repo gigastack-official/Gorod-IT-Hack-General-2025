@@ -39,11 +39,20 @@ export class AuditService {
     
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
-        params.append(key, value.toString());
+        // Специальная обработка для булевых значений
+        if (typeof value === 'boolean') {
+          params.append(key, value.toString());
+        } else {
+          params.append(key, value.toString());
+        }
       }
     });
 
-    const response = await fetch(`${API_BASE}/api/audit/access-history?${params}`);
+    const url = `${API_BASE}/api/audit/access-history?${params}`;
+    console.log('Access history URL:', url);
+    console.log('Access history params:', params.toString());
+    
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch access history: ${response.status}`);
     }

@@ -38,12 +38,21 @@ const SecurityMonitoringPage = () => {
   const fetchSecurityData = async () => {
     setLoading(true);
     try {
+      console.log('Fetching security data with maxFailures:', maxFailures);
+      
       const [suspiciousData, failuresData, ipsData, responseData] = await Promise.all([
         AuditService.findSuspiciousActivity(maxFailures),
         AuditService.findFrequentFailures(maxFailures),
         AuditService.findSuspiciousIPs(maxFailures),
         AuditService.getAverageResponseTimeByReader()
       ]);
+      
+      console.log('Security data received:', {
+        suspiciousActivity: suspiciousData,
+        frequentFailures: failuresData,
+        suspiciousIPs: ipsData,
+        responseTimes: responseData
+      });
       
       setSuspiciousActivity(suspiciousData);
       setFrequentFailures(failuresData);
@@ -65,6 +74,7 @@ const SecurityMonitoringPage = () => {
   useEffect(() => {
     fetchSecurityData();
   }, [maxFailures]);
+
 
   // Экспорт данных безопасности
   const handleExport = async () => {
@@ -115,14 +125,20 @@ const SecurityMonitoringPage = () => {
 
   // Форматирование времени
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ru-RU');
+    if (!dateString) return 'Неизвестно';
+    try {
+      return new Date(dateString).toLocaleString('ru-RU');
+    } catch (error) {
+      return 'Неверная дата';
+    }
   };
 
   // Получение уровня угрозы
   const getThreatLevel = (failureCount: number) => {
-    if (failureCount >= 10) return { level: "Критический", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" };
-    if (failureCount >= 5) return { level: "Высокий", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" };
-    if (failureCount >= 3) return { level: "Средний", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" };
+    const count = failureCount || 0;
+    if (count >= 10) return { level: "Критический", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" };
+    if (count >= 5) return { level: "Высокий", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" };
+    if (count >= 3) return { level: "Средний", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" };
     return { level: "Низкий", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" };
   };
 
@@ -147,7 +163,7 @@ const SecurityMonitoringPage = () => {
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex items-center gap-2">
                 <Label htmlFor="maxFailures" className="text-sm text-slate-600 dark:text-slate-300">
                   Порог неудач:
@@ -162,23 +178,27 @@ const SecurityMonitoringPage = () => {
                   className="w-20 h-8"
                 />
               </div>
-              <Button
-                onClick={fetchSecurityData}
-                disabled={loading}
-                variant="outline"
-                size="sm"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Обновить
-              </Button>
-              <Button
-                onClick={handleExport}
-                variant="outline"
-                size="sm"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Экспорт
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={fetchSecurityData}
+                  disabled={loading}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 sm:flex-none"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Обновить
+                </Button>
+                <Button
+                  onClick={handleExport}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 sm:flex-none"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Экспорт
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
@@ -194,6 +214,17 @@ const SecurityMonitoringPage = () => {
               {suspiciousActivity.length} событий
             </Badge>
           </div>
+          
+          {suspiciousActivity.length === 0 && (
+            <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+              <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+              <p className="text-lg font-medium mb-2">Нет подозрительной активности</p>
+              <p className="text-sm">Система не обнаружила подозрительных событий за текущий период.</p>
+              <p className="text-xs mt-2 text-slate-400">
+                Попробуйте уменьшить порог неудач или создайте тестовые события.
+              </p>
+            </div>
+          )}
           
           {loading ? (
             <div className="flex items-center justify-center py-8">
@@ -312,18 +343,18 @@ const SecurityMonitoringPage = () => {
                             {threat.level}
                           </Badge>
                           <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                            Карта: {failure.cardId.slice(0, 8)}...
+                            Карта: {failure.cardId ? failure.cardId.slice(0, 8) + '...' : 'Неизвестно'}
                           </span>
                           <span className="text-sm text-slate-600 dark:text-slate-300">
-                            {failure.failureCount} неудач
+                            {failure.failureCount || 0} неудач
                           </span>
                         </div>
                         
                         <div className="text-sm text-slate-600 dark:text-slate-300">
-                          <strong>Последняя неудача:</strong> {formatDateTime(failure.lastFailure)}
+                          <strong>Последняя неудача:</strong> {failure.lastFailure ? formatDateTime(failure.lastFailure) : 'Неизвестно'}
                         </div>
                         
-                        {failure.failureReasons.length > 0 && (
+                        {failure.failureReasons && failure.failureReasons.length > 0 && (
                           <div className="text-sm text-orange-700 dark:text-orange-300">
                             <strong>Причины:</strong> {failure.failureReasons.join(', ')}
                           </div>
@@ -370,19 +401,19 @@ const SecurityMonitoringPage = () => {
                             {threat.level}
                           </Badge>
                           <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                            IP: {ip.ipAddress}
+                            IP: {ip.ipAddress || 'Неизвестно'}
                           </span>
                           <span className="text-sm text-slate-600 dark:text-slate-300">
-                            {ip.failureCount} неудач
+                            {ip.failureCount || 0} неудач
                           </span>
                         </div>
                         
                         <div className="text-sm text-slate-600 dark:text-slate-300">
-                          <strong>Последняя неудача:</strong> {formatDateTime(ip.lastFailure)}
+                          <strong>Последняя неудача:</strong> {ip.lastFailure ? formatDateTime(ip.lastFailure) : 'Неизвестно'}
                         </div>
                         
                         <div className="text-sm text-purple-700 dark:text-purple-300">
-                          <strong>Затронутые карты:</strong> {ip.affectedCards.length} карт
+                          <strong>Затронутые карты:</strong> {ip.affectedCards ? ip.affectedCards.length : 0} карт
                         </div>
                       </div>
                     </div>
@@ -394,7 +425,7 @@ const SecurityMonitoringPage = () => {
         </Card>
 
         {/* Время ответа ридеров */}
-        {responseTimes.length > 0 && (
+        {responseTimes && responseTimes.length > 0 && (
           <Card className="group p-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/30 dark:border-slate-700/50 shadow-xl transition-all duration-200">
             <div className="flex items-center gap-2 mb-4">
               <Activity className="w-5 h-5 text-blue-600" />
