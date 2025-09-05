@@ -41,7 +41,7 @@ const AccessHistoryPage = () => {
   // Загрузка списка карт для фильтрации
   const fetchCards = useCallback(async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL ?? "http://172.20.179.188:8080"}/api/admin/list`);
+      const response = await fetch(`${(import.meta.env.VITE_API_URL as string | undefined) ?? "https://gigastack.v6.rocks/api"}/admin/list`);
       if (response.ok) {
         const data = await response.json();
         setCards(data.map((card: any) => ({ cardId: card.cardId, owner: card.owner })));

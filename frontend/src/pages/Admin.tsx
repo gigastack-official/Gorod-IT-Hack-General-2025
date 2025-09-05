@@ -44,7 +44,7 @@ type StatusResponse = {
   status: "OK" | "FAIL";
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.188:8080";
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "https://gigastack.v6.rocks/api";
 
 const AdminPage = () => {
   const { toast } = useToast();
@@ -61,7 +61,7 @@ const AdminPage = () => {
   const fetchCards = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/list`, {
+      const res = await fetch(`${API_BASE}/admin/list`, {
         headers: {
           "User-Agent": "CryptoKeyGate-Frontend/1.0.0",
           "X-Device-Type": "WebReader",
@@ -86,7 +86,7 @@ const AdminPage = () => {
     if (!owner) return;
     setCreating(true);
     try {
-      const res = await fetch(`${API_BASE}/api/cards`, {
+      const res = await fetch(`${API_BASE}/cards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ owner, ttlSeconds, userRole, generateQr }),
@@ -123,7 +123,7 @@ const AdminPage = () => {
 
   const revokeCard = async (cardId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/revoke/${encodeURIComponent(cardId)}`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/admin/revoke/${encodeURIComponent(cardId)}`, { method: "POST" });
       if (!res.ok) throw new Error(`revoke ${res.status}`);
       const status = (await res.json()) as StatusResponse;
       if (status.status !== "OK") throw new Error("FAIL");
@@ -136,7 +136,7 @@ const AdminPage = () => {
 
   const extendCard = async (cardId: string, extraSeconds: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/extend/${encodeURIComponent(cardId)}?extraSeconds=${extraSeconds}`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/admin/extend/${encodeURIComponent(cardId)}?extraSeconds=${extraSeconds}`, { method: "POST" });
       if (!res.ok) throw new Error(`extend ${res.status}`);
       const status = (await res.json()) as StatusResponse;
       if (status.status !== "OK") throw new Error("FAIL");

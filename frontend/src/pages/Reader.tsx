@@ -37,7 +37,7 @@ type CardRecord = {
   lastCtr?: number | null;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.188:8080";
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "https://gigastack.v6.rocks/api";
 
 const KeyPage = () => {
   const [currentKey, setCurrentKey] = useState<KeyDto | null>(null);
@@ -57,7 +57,7 @@ const KeyPage = () => {
   const fetchCards = useCallback(async () => {
     setLoadingCards(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/list`, {
+      const res = await fetch(`${API_BASE}/admin/list`, {
         headers: {
           "User-Agent": "CryptoKeyGate-Frontend/1.0.0",
           "X-Device-Type": "WebReader",
@@ -84,7 +84,7 @@ const KeyPage = () => {
   }, [fetchCards]);
 
   const createCard = async (owner: string, ttlSeconds: number, userRole: string, generateQr: boolean): Promise<{ cardId: string; owner: string; expiresAt: string; userRole: string; qrCode?: string }> => {
-    const res = await fetch(`${API_BASE}/api/cards`, {
+    const res = await fetch(`${API_BASE}/cards`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
@@ -110,7 +110,7 @@ const KeyPage = () => {
 
   const requestNewKey = async (cardId: string, ttlSeconds: number): Promise<KeyDto> => {
     // Сначала получаем ctr/tag от эмулятора
-    const simRes = await fetch(`${API_BASE}/api/sim/response/${encodeURIComponent(cardId)}`, {
+    const simRes = await fetch(`${API_BASE}/sim/response/${encodeURIComponent(cardId)}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

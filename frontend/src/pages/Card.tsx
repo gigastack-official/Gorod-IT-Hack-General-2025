@@ -46,7 +46,7 @@ type AttestationResponse = {
   error?: string | null;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://172.20.179.188:8080";
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "https://gigastack.v6.rocks/api";
 
 const CardPage = () => {
   const [isScanning, setIsScanning] = useState(false);
@@ -60,10 +60,10 @@ const CardPage = () => {
   const attestReader = async () => {
     try {
       console.log("Starting reader attestation for:", readerId);
-      console.log("Attestation challenge URL:", `${API_BASE}/api/attest/challenge/${encodeURIComponent(readerId)}`);
+      console.log("Attestation challenge URL:", `${API_BASE}/attest/challenge/${encodeURIComponent(readerId)}`);
       
       // Получаем челлендж
-      const challengeRes = await fetch(`${API_BASE}/api/attest/challenge/${encodeURIComponent(readerId)}`, {
+      const challengeRes = await fetch(`${API_BASE}/attest/challenge/${encodeURIComponent(readerId)}`, {
         method: "POST",
         headers: {
           "User-Agent": "CryptoKeyGate-Frontend/1.0.0",
@@ -88,7 +88,7 @@ const CardPage = () => {
       const signature = `device-signature-${challengeData.challenge}`;
 
       // Верифицируем аттестацию
-      const verifyRes = await fetch(`${API_BASE}/api/attest/verify/${encodeURIComponent(readerId)}`, {
+      const verifyRes = await fetch(`${API_BASE}/attest/verify/${encodeURIComponent(readerId)}`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -163,7 +163,7 @@ const CardPage = () => {
       } catch (parseError) {
         console.log("Failed to parse as JSON, trying as base64url QR code:", parseError);
         // If not JSON, treat as base64url encoded QR code
-        const qrVerifyRes = await fetch(`${API_BASE}/api/qr/verify`, {
+        const qrVerifyRes = await fetch(`${API_BASE}/qr/verify`, {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
@@ -202,9 +202,9 @@ const CardPage = () => {
 
       // Verify on backend using values from QR
       console.log("Verifying card:", { cardId, ctr, tag, readerId });
-      console.log("API URL:", `${API_BASE}/api/cards/verify`);
+      console.log("API URL:", `${API_BASE}/cards/verify`);
       
-      const verifyRes = await fetch(`${API_BASE}/api/cards/verify`, {
+      const verifyRes = await fetch(`${API_BASE}/cards/verify`, {
         method: "POST",
         mode: 'cors',
         credentials: 'include',
