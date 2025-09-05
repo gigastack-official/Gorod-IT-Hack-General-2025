@@ -77,36 +77,46 @@ const CardPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 p-4 space-y-6">
       <Navigation />
       
       <div className="max-w-md mx-auto space-y-6">
-        <Card className="p-6 bg-gradient-card shadow-card">
-          <div className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center shadow-glow">
-              <Smartphone className="w-8 h-8 text-primary-foreground" />
+        <Card className="group p-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/30 dark:border-slate-700/50 shadow-xl hover:shadow-2xl transition-all duration-200 hover:scale-105">
+          <div className="text-center space-y-6">
+            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-all duration-200 group-hover:scale-110 group-hover:rotate-6">
+              <Smartphone className="w-10 h-10 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Ключ</h1>
-              <p className="text-muted-foreground">Сканируйте QR для проверки</p>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Считыватель</h1>
+              <p className="text-slate-600 dark:text-slate-300 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors duration-200">Сканируйте QR для проверки</p>
             </div>
-          </div>
-        </Card>
-
-        <Card className="p-6 bg-gradient-card shadow-card">
-          <div className="space-y-4">
             <Button
               onClick={() => setIsScanning(!isScanning)}
               disabled={isProcessing}
-              className="w-full bg-gradient-primary hover:opacity-90 shadow-primary"
+              className="w-full h-14 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 text-lg font-semibold"
             >
-              {isScanning ? "Остановить сканирование" : "Начать сканирование"}
+              {isScanning ? (
+                <>
+                  <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Остановить сканирование
+                </>
+              ) : (
+                <>
+                  <Smartphone className="w-5 h-5 mr-2" />
+                  Начать сканирование
+                </>
+              )}
             </Button>
+          </div>
+        </Card>
+
+        <Card className="group p-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/30 dark:border-slate-700/50 shadow-xl hover:shadow-2xl transition-all duration-200 hover:scale-105">
+          <div className="space-y-6">
             {isProcessing && (
-              <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
-                <div className="flex items-center gap-2 text-primary">
-                  <Send className="w-4 h-4 animate-pulse" />
-                  <span className="text-sm font-medium">
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-700/50 rounded-xl">
+                <div className="flex items-center gap-3 text-blue-600 dark:text-blue-400">
+                  <Send className="w-5 h-5 animate-bounce" />
+                  <span className="font-medium animate-pulse">
                     Обработка QR...
                   </span>
                 </div>
@@ -115,11 +125,13 @@ const CardPage = () => {
           </div>
         </Card>
 
-        <QRScanner
-          isActive={isScanning}
-          onResult={handleQRResult}
-          onError={handleScanError}
-        />
+        <div className="transition-all duration-200 hover:scale-105">
+          <QRScanner
+            isActive={isScanning}
+            onResult={handleQRResult}
+            onError={handleScanError}
+          />
+        </div>
       </div>
     </div>
   );
