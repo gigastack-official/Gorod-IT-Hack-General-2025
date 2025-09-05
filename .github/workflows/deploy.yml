@@ -22,15 +22,10 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Обновление кода на VDS (git pull из репозитория)
+      - name: Копирование исходников на VDS (rsync всего репозитория)
         run: |
-          ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "\
-            git config --global --add safe.directory /opt/crypto-access || true; \
-            if [ -d /opt/crypto-access/.git ]; then \
-              cd /opt/crypto-access && git fetch origin main && git reset --hard origin/main; \
-            else \
-              mkdir -p /opt/crypto-access && cd /opt/crypto-access && git clone https://github.com/gigastack-official/Gorod-IT-Hack-General-2025.git .; \
-            fi"
+          ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "mkdir -p /opt/crypto-access"
+          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ root@gigastack.v6.rocks:/opt/crypto-access/
 
       - name: Сборка и запуск docker compose на VDS (только backend+postgres)
         run: |
