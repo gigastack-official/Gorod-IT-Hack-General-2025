@@ -1,13 +1,19 @@
 openapi: 3.0.3
 info:
   title: CityItHack Access Control API
-  version: 1.0.0
+  version: 2.0.0
   description: |
-    Система контроля доступа: создание карт, генерация ответа карты (эмулятор),
-    верификация на контроллере, администрирование карт.
+    Система контроля доступа с поддержкой:
+    - Создание карт с ролями пользователей (admin, permanent, temporary, guest)
+    - Автоматическая ротация ключей с нулевым простоем
+    - QR коды для гостевых пропусков
+    - Удаленная аттестация ридеров
+    - Аппаратная защищенность (обертка ключей AES-GCM)
 servers:
   - url: http://localhost:8080
     description: Local server
+  - url: http://localhost:8081
+    description: Development server
 paths:
   /api/cards:
     post:
@@ -48,6 +54,13 @@ paths:
     post:
       summary: Верификация контроллером (HMAC-SHA256 trunc16)
       operationId: verifyCard
+      parameters:
+        - in: header
+          name: X-Reader-Id
+          required: true
+          schema:
+            type: string
+          description: Идентификатор аттестованного ридера
       requestBody:
         required: true
         content:
@@ -57,6 +70,12 @@ paths:
       responses:
         '200':
           description: Результат проверки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '400':
+          description: Ошибка валидации (отсутствует X-Reader-Id)
           content:
             application/json:
               schema:
@@ -136,6 +155,115 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/CardRecord'
+  /api/qr/verify:
+    post:
+      summary: Верификация QR кода
+      operationId: verifyQrCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QrVerifyRequest'
+      responses:
+        '200':
+          description: Результат проверки QR кода
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QrVerifyResponse'
+        '400':
+          description: Ошибка валидации QR кода
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QrVerifyResponse'
+  /api/qr/generate/{cardId}:
+    get:
+      summary: Генерация QR кода для карты
+      operationId: generateQrCode
+      parameters:
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+          description: base64url(16) идентификатор карты
+      responses:
+        '200':
+          description: QR код сгенерирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QrGenerateResponse'
+        '404':
+          description: Карта не найдена
+  /api/attest/challenge/{readerId}:
+    post:
+      summary: Генерация челленджа для аттестации ридера
+      operationId: generateAttestationChallenge
+      parameters:
+        - in: path
+          name: readerId
+          required: true
+          schema:
+            type: string
+          description: Идентификатор ридера
+      responses:
+        '200':
+          description: Челлендж сгенерирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestationChallenge'
+  /api/attest/verify/{readerId}:
+    post:
+      summary: Верификация аттестации ридера
+      operationId: verifyAttestation
+      parameters:
+        - in: path
+          name: readerId
+          required: true
+          schema:
+            type: string
+          description: Идентификатор ридера
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttestationVerifyRequest'
+      responses:
+        '200':
+          description: Аттестация успешна
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestationResponse'
+        '400':
+          description: Ошибка аттестации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestationResponse'
+  /api/attest/status/{readerId}:
+    get:
+      summary: Статус аттестации ридера
+      operationId: getAttestationStatus
+      parameters:
+        - in: path
+          name: readerId
+          required: true
+          schema:
+            type: string
+          description: Идентификатор ридера
+      responses:
+        '200':
+          description: Статус аттестации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttestationStatus'
 components:
   schemas:
     CreateCardRequest:
@@ -150,6 +278,15 @@ components:
             format: int64
             minimum: 60
             example: 86400
+        userRole:
+            type: string
+            enum: [admin, permanent, temporary, guest]
+            default: permanent
+            example: permanent
+        generateQr:
+            type: boolean
+            default: false
+            example: false
     CreateCardResponse:
       type: object
       required: [status, cardId, owner, expiresAt]
@@ -166,6 +303,16 @@ components:
         expiresAt:
           type: string
           format: date-time
+        userRole:
+          type: string
+          enum: [admin, permanent, temporary, guest]
+        qrCode:
+          type: string
+          nullable: true
+          description: Base64URL encoded QR code
+        keyVersion:
+          type: integer
+          description: Версия ключа для ротации
     VerifyRequest:
       type: object
       required: [cardId, ctr, tag]
@@ -218,5 +365,107 @@ components:
           nullable: true
         active:
           type: boolean
+        userRole:
+          type: string
+          enum: [admin, permanent, temporary, guest]
+        keyVersion:
+          type: integer
+        nextRotationAt:
+          type: string
+          format: date-time
+          nullable: true
+        qrCode:
+          type: string
+          nullable: true
+        lastCtr:
+          type: integer
+          nullable: true
+    QrVerifyRequest:
+      type: object
+      required: [qrCode]
+      properties:
+        qrCode:
+          type: string
+          description: Base64URL encoded QR code
+    QrVerifyResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [OK, FAIL]
+        cardId:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+    QrGenerateResponse:
+      type: object
+      required: [status, cardId, qrCode]
+      properties:
+        status:
+          type: string
+          enum: [OK]
+        cardId:
+          type: string
+        qrCode:
+          type: string
+        owner:
+          type: string
+        userRole:
+          type: string
+    AttestationChallenge:
+      type: object
+      required: [challenge, readerId]
+      properties:
+        challenge:
+          type: string
+          description: UUID challenge string
+        readerId:
+          type: string
+    AttestationVerifyRequest:
+      type: object
+      required: [challenge, signature]
+      properties:
+        challenge:
+          type: string
+        signature:
+          type: string
+          description: Device signature
+    AttestationResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [OK, FAIL]
+        readerId:
+          type: string
+          nullable: true
+        attestedAt:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+    AttestationStatus:
+      type: object
+      required: [status, readerId]
+      properties:
+        status:
+          type: string
+          enum: [ATTESTED, NOT_ATTESTED]
+        readerId:
+          type: string
+        attestedAt:
+          type: string
+          nullable: true
+        ageMinutes:
+          type: integer
+          nullable: true
 
 

@@ -22,12 +22,20 @@ public class CardController {
 
     @PostMapping
     public ResponseEntity<CreateCardResponse> createCard(@Valid @RequestBody CreateCardRequest req) {
-        CardRecord rec = cardService.personalize(req.getOwner(), req.getTtlSeconds());
-        return ResponseEntity.ok(new CreateCardResponse("OK", rec.getCardId(), rec.getOwner(), rec.getExpiresAt().toString()));
+        CreateCardResponse response = cardService.createCardWithRole(req);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<java.util.Map<String, String>> verify(@Valid @RequestBody VerifyRequest request) {
+    public ResponseEntity<java.util.Map<String, String>> verify(
+            @Valid @RequestBody VerifyRequest request,
+            @RequestHeader(value = "X-Reader-Id", required = false) String readerId) {
+        
+        if (readerId == null || readerId.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(java.util.Collections.singletonMap("status", "FAIL"));
+        }
+        
         byte[] ctr = B64Url.decode(request.getCtr());
         byte[] tag = B64Url.decode(request.getTag());
         boolean ok = cardService.verifyTruncTag(request.getCardId(), ctr, tag);
