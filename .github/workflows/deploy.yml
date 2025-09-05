@@ -25,6 +25,7 @@ jobs:
       - name: Обновление кода на VDS (git pull из репозитория)
         run: |
           ssh -o StrictHostKeyChecking=no root@gigastack.v6.rocks "\
+            git config --global --add safe.directory /opt/crypto-access || true; \
             if [ -d /opt/crypto-access/.git ]; then \
               cd /opt/crypto-access && git fetch origin main && git reset --hard origin/main; \
             else \
