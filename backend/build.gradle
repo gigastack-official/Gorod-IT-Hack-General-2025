@@ -8,28 +8,21 @@ group = 'ru.gigastack'
 version = '1.0.0'
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-    }
+    toolchain { languageVersion = JavaLanguageVersion.of(17) }
 }
 
 repositories {
     mavenCentral()
-    maven { url 'https://repo.spring.io/release' } // опционально, но полезно
+    maven { url 'https://repo.spring.io/release' } // опционально
 }
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'com.klinec:jcardsim:3.0.6.0'
-
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
 tasks.named('bootJar') {
     archiveFileName = 'app.jar'
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
 }

@@ -96,3 +96,9 @@ docker-compose.override.yml
 # Temporary files
 *.tmp
 *.temp
+
+
+
+**
+!build/libs/**
+!Dockerfile
