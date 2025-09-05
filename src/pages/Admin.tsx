@@ -267,9 +267,9 @@ const AdminPage = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                       <Select value={String(extendSeconds)} onValueChange={(v) => setExtendSeconds(Number(v))}>
-                        <SelectTrigger className="w-[120px]">
+                        <SelectTrigger className="w-full sm:w-[120px]">
                           <SelectValue placeholder="Продлить" />
                         </SelectTrigger>
                         <SelectContent>
@@ -278,7 +278,7 @@ const AdminPage = () => {
                           <SelectItem value="604800">+7 дней</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button size="sm" variant="outline" onClick={() => extendCard(c.cardId, extendSeconds)}>
+                      <Button size="sm" variant="outline" onClick={() => extendCard(c.cardId, extendSeconds)} className="w-full sm:w-auto">
                         <Clock className="w-3 h-3 mr-1" /> Продлить
                       </Button>
                     </div>

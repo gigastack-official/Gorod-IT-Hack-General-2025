@@ -353,7 +353,7 @@ const KeyPage = () => {
               </div>
               
               {/* Быстрый выбор времени */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {[
                   { value: 300, label: "5 мин" },
                   { value: 900, label: "15 мин" },
@@ -481,11 +481,11 @@ const KeyPage = () => {
             </div>
 
             {/* Кнопки действий */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
             <Button
               onClick={generateKey}
                 disabled={isGenerating || !selectedCardId || ttlSeconds < 60 || !isValidTtl}
-                className="flex-1 h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 text-base font-semibold"
+                className="w-full sm:flex-1 h-12 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 text-base font-semibold"
             >
               {isGenerating ? (
                 <>
@@ -542,11 +542,11 @@ const KeyPage = () => {
                       <span className="text-sm font-medium">Действия с QR-кодом</span>
                     </div>
                     
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <Button
                         onClick={copyQRData}
                         variant="outline"
-                        className="flex-1 h-10"
+                        className="w-full sm:flex-1 h-10"
                       >
                         <Copy className="w-4 h-4 mr-2" />
                         Копировать данные
@@ -555,7 +555,7 @@ const KeyPage = () => {
                       <Button
                         onClick={downloadQRData}
                         variant="outline"
-                        className="flex-1 h-10"
+                        className="w-full sm:flex-1 h-10"
                       >
                         <Download className="w-4 h-4 mr-2" />
                         Скачать файл

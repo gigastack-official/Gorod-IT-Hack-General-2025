@@ -182,26 +182,28 @@ const QRScanner = ({ onResult, onError, isActive }: QRScannerProps) => {
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {cameras.length > 1 && (
               <Button
                 size="sm"
                 variant="outline"
                 onClick={switchCamera}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 w-full sm:w-auto"
               >
                 <RotateCcw className="w-4 h-4" />
-                Сменить камеру
+                <span className="hidden sm:inline">Сменить камеру</span>
+                <span className="sm:hidden">Камера</span>
               </Button>
             )}
             <Button
               size="sm"
               variant="outline"
               onClick={handleManualRestart}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 w-full sm:w-auto"
             >
               <RotateCcw className="w-4 h-4" />
-              Перезапустить
+              <span className="hidden sm:inline">Перезапустить</span>
+              <span className="sm:hidden">Перезапуск</span>
             </Button>
           </div>
         </div>
@@ -209,7 +211,7 @@ const QRScanner = ({ onResult, onError, isActive }: QRScannerProps) => {
         <div className="relative rounded-lg overflow-hidden bg-black">
           <video
             ref={videoRef}
-            className="w-full h-64 object-cover"
+            className="w-full h-48 sm:h-64 md:h-80 object-cover"
             playsInline
             muted
           />

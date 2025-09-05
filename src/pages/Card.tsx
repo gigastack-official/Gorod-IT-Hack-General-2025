@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Smartphone, Send, Shield, CheckCircle, Keyboard } from "lucide-react";
+import { Smartphone, Send, Shield, CheckCircle } from "lucide-react";
 import Navigation from "@/components/layout/Navigation";
 import QRScanner from "@/components/QRScanner";
 import { useToast } from "@/hooks/use-toast";
@@ -53,15 +51,11 @@ const CardPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAttested, setIsAttested] = useState(false);
   const [readerId] = useState("READER-001");
-  const [testInput, setTestInput] = useState("");
   const { toast } = useToast();
 
   // Аттестация ридера
   const attestReader = async () => {
     try {
-      console.log("Starting reader attestation for:", readerId);
-      console.log("Attestation challenge URL:", `${API_BASE}/api/attest/challenge/${encodeURIComponent(readerId)}`);
-      
       // Получаем челлендж
       const challengeRes = await fetch(`${API_BASE}/api/attest/challenge/${encodeURIComponent(readerId)}`, {
         method: "POST",
@@ -72,16 +66,12 @@ const CardPage = () => {
         }
       });
 
-      console.log("Challenge response status:", challengeRes.status);
-
       if (!challengeRes.ok) {
         const text = await challengeRes.text().catch(() => "");
-        console.error("Challenge error response:", text);
         throw new Error(`Ошибка получения челленджа ${challengeRes.status}: ${text}`);
       }
 
       const challengeData: AttestationChallenge = await challengeRes.json();
-      console.log("Challenge data:", challengeData);
       
       // В реальном приложении здесь должна быть подпись устройства
       // Для демонстрации используем простую подпись
@@ -102,16 +92,12 @@ const CardPage = () => {
         } as AttestationVerifyRequest),
       });
 
-      console.log("Verify attestation response status:", verifyRes.status);
-
       if (!verifyRes.ok) {
         const text = await verifyRes.text().catch(() => "");
-        console.error("Attestation verify error response:", text);
         throw new Error(`Ошибка верификации аттестации ${verifyRes.status}: ${text}`);
       }
 
       const verifyData: AttestationResponse = await verifyRes.json();
-      console.log("Attestation verify data:", verifyData);
       
       if (verifyData.status === "OK") {
         setIsAttested(true);
@@ -123,7 +109,6 @@ const CardPage = () => {
         throw new Error(verifyData.error || "Ошибка аттестации");
       }
     } catch (error) {
-      console.error("Ошибка аттестации:", error);
       toast({
         title: "Ошибка аттестации",
         description: error instanceof Error ? error.message : "Не удалось аттестовать ридер",
@@ -137,7 +122,6 @@ const CardPage = () => {
     
     // Проверяем аттестацию ридера
     if (!isAttested) {
-      console.log("Reader not attested, attempting attestation first...");
       await attestReader();
       if (!isAttested) {
         toast({
@@ -153,15 +137,11 @@ const CardPage = () => {
     setIsScanning(false);
     
     try {
-      console.log("QR Data received:", qrData);
-      
       // Try to parse as JSON first (for cardId, ctr, tag format)
       let parsed;
       try {
         parsed = JSON.parse(qrData);
-        console.log("Parsed QR data as JSON:", parsed);
       } catch (parseError) {
-        console.log("Failed to parse as JSON, trying as base64url QR code:", parseError);
         // If not JSON, treat as base64url encoded QR code
         const qrVerifyRes = await fetch(`${API_BASE}/api/qr/verify`, {
           method: "POST",
@@ -193,21 +173,15 @@ const CardPage = () => {
 
       // Handle JSON format (cardId, ctr, tag)
       const { cardId, ctr, tag } = parsed as { cardId?: string; ctr?: string; tag?: string } & Record<string, unknown>;
-      console.log("Extracted data:", { cardId, ctr, tag });
-      console.log("Full parsed data:", parsed);
       
       if (!cardId || !ctr || !tag) {
         throw new Error("QR должен содержать cardId, ctr и tag");
       }
 
       // Verify on backend using values from QR
-      console.log("Verifying card:", { cardId, ctr, tag, readerId });
-      console.log("API URL:", `${API_BASE}/api/cards/verify`);
       
       const verifyRes = await fetch(`${API_BASE}/api/cards/verify`, {
         method: "POST",
-        mode: 'cors',
-        credentials: 'include',
         headers: { 
           "Content-Type": "application/json",
           "X-Reader-Id": readerId, // Required header for reader attestation
@@ -218,18 +192,11 @@ const CardPage = () => {
         body: JSON.stringify({ cardId, ctr, tag }),
       });
       
-      console.log("Verify response status:", verifyRes.status);
-      console.log("Verify response headers:", Object.fromEntries(verifyRes.headers.entries()));
-      
       if (!verifyRes.ok) {
         const text = await verifyRes.text().catch(() => "");
-        console.error("Verify error response:", text);
-        console.error("Error status:", verifyRes.status);
-        console.error("Error statusText:", verifyRes.statusText);
         throw new Error(`Проверка вернула ${verifyRes.status}: ${text || verifyRes.statusText}`);
       }
       const status: StatusResponse = await verifyRes.json();
-      console.log("Verify response:", status);
 
       const success = status.status === "OK";
       toast({
@@ -239,67 +206,30 @@ const CardPage = () => {
       });
       
     } catch (error) {
-      console.error('Challenge processing error:', error);
-      
-      // Проверяем тип ошибки
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.error('Network error - request may not have reached backend');
-        toast({
-          title: "Ошибка сети",
-          description: "Запрос не дошел до сервера. Проверьте подключение к интернету.",
-          variant: "destructive",
-        });
-      } else if (error instanceof Error && error.message.includes('CORS')) {
-        console.error('CORS error - backend may not allow this request');
-        toast({
-          title: "Ошибка CORS",
-          description: "Сервер не разрешает этот запрос. Проверьте настройки CORS.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Ошибка обработки",
-          description: error instanceof Error ? error.message : "Не удалось обработать QR-код",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Ошибка обработки",
+        description: error instanceof Error ? error.message : "Не удалось обработать QR-код",
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleScanError = (error: string) => {
-    console.error("QR Scan Error:", error);
     toast({
       title: "Ошибка сканирования",
       description: error,
       variant: "destructive",
     });
-    
-    // If camera permission error, suggest manual input
-    if (error.includes("доступ") || error.includes("камера")) {
-      setTimeout(() => {
-        toast({
-          title: "Альтернативный способ",
-          description: "Используйте поле 'Тестовый ввод' для ручного ввода QR-кода",
-          variant: "default",
-        });
-      }, 2000);
-    }
   };
 
-  const handleTestInput = () => {
-    if (testInput.trim()) {
-      handleQRResult(testInput.trim());
-      setTestInput("");
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 p-4 space-y-6">
       <Navigation />
       
-      <div className="max-w-md mx-auto space-y-6">
+      <div className="max-w-md mx-auto space-y-6 sm:max-w-lg md:max-w-xl lg:max-w-2xl">
         <Card className="group p-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/30 dark:border-slate-700/50 shadow-xl hover:shadow-2xl transition-all duration-200 hover:scale-105">
           <div className="text-center space-y-6">
             <div className="mx-auto w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-all duration-200 group-hover:scale-110 group-hover:rotate-6">
@@ -336,29 +266,29 @@ const CardPage = () => {
               </div>
 
               {/* Кнопки действий */}
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 {!isAttested ? (
                   <Button
                     onClick={attestReader}
-                    className="flex-1 h-12 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 text-base font-semibold"
+                    className="w-full sm:flex-1 h-12 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 text-base font-semibold"
                   >
-                    <Shield className="w-5 h-5 mr-2" />
+                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                     Аттестовать ридер
                   </Button>
                 ) : (
                   <Button
                     onClick={() => setIsScanning(!isScanning)}
                     disabled={isProcessing}
-                    className="flex-1 h-12 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 text-base font-semibold"
+                    className="w-full sm:flex-1 h-12 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 text-base font-semibold"
                   >
                     {isScanning ? (
                       <>
-                        <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 sm:w-5 sm:h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         Остановить сканирование
                       </>
                     ) : (
                       <>
-                        <Smartphone className="w-5 h-5 mr-2" />
+                        <Smartphone className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                         Начать сканирование
                       </>
                     )}
@@ -380,67 +310,8 @@ const CardPage = () => {
             </div>
           </Card>
         )}
-                    {/* Тестовый ввод */}
-                    <Card className="group p-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/30 dark:border-slate-700/50 shadow-xl transition-all duration-200">
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                          <Keyboard className="w-4 h-4" />
-                          <span className="text-sm font-medium">Тестовый ввод</span>
-                        </div>
-                        
-                        <div className="space-y-3">
-                          <div className="space-y-2">
-                            <Label htmlFor="testInput">Введите QR данные вручную:</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                id="testInput"
-                                value={testInput}
-                                onChange={(e) => setTestInput(e.target.value)}
-                                placeholder="Вставьте QR данные здесь..."
-                                className="flex-1"
-                              />
-                              <Button
-                                onClick={handleTestInput}
-                                disabled={!testInput.trim() || isProcessing}
-                                className="px-4"
-                              >
-                                <Send className="w-4 h-4 mr-2" />
-                                Проверить
-                              </Button>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => setTestInput('{"cardId":"invalid-card-id","ctr":"invalid-ctr","tag":"invalid-tag"}')}
-                              >
-                                Тестовые данные (ошибка)
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => setTestInput('{"cardId":"test-card-123","ctr":"test-ctr-456","tag":"test-tag-789"}')}
-                              >
-                                Тестовые данные (успех)
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => setTestInput('')}
-                              >
-                                Очистить
-                              </Button>
-                            </div>
-                          </div>
-                          
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            Скопируйте данные из генератора QR-кодов и вставьте сюда для тестирования
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
 
-                    <div className="transition-all duration-200 hover:scale-105">
+                    <div className="transition-all duration-200 hover:scale-105 w-full">
               <QRScanner
                 isActive={isScanning}
                 onResult={handleQRResult}
