@@ -29,26 +29,69 @@ jobs:
           java-version: '17'
 
       - name: Cache Gradle
+      # ключи можно оставить как есть
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('backend/**/gradle-wrapper.properties', 'backend/**/build.gradle', 'backend/**/settings.gradle') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('backend/**/gradle-wrapper.properties', 'backend/**/build.gradle*', 'backend/**/settings.gradle*') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build (assemble)
-        run: ./gradlew clean build -x test
+      - name: Build (bootJar)
+        run: ./gradlew -p backend clean bootJar --no-daemon
 
       - name: Upload jar artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: backend-artifact
           path: backend/build/libs/*.jar
 
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (for compose/Dockerfile)
+        uses: actions/checkout@v4
 
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-artifact
+          path: backend/build/libs
+
+      - name: Show JAR
+        run: ls -la backend/build/libs
+
+      - name: Push files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: gigastack.v6.rocks
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          source: |
+            docker-compose.yml
+            backend/Dockerfile
+            frontend/Dockerfile
+            frontend/nginx.conf
+            backend/build/libs/*
+          target: /opt/crypto-access/
+          strip_components: 0
+
+      - name: Compose up on server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: gigastack.v6.rocks
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/crypto-access
+            mkdir -p backend/build/libs
+            # (на случай если SCP сложил jar в корень)
+            if ls *.jar >/dev/null 2>&1; then mv -f *.jar backend/build/libs/; fi
+            docker compose up -d --build backend postgres
