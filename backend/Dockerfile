@@ -2,6 +2,7 @@
 FROM public.ecr.aws/docker/library/gradle:8.10.0-jdk17 AS build
 WORKDIR /app
 COPY . .
+ENV GRADLE_OPTS="-Djava.net.preferIPv4Stack=true"
 RUN gradle -p backend clean bootJar --no-daemon
 
 # ---- Run stage ----
