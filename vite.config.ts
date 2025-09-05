@@ -19,4 +19,17 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    include: ['qr-scanner'],
+    force: true,
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'qr-scanner': ['qr-scanner'],
+        },
+      },
+    },
+  },
 }));
